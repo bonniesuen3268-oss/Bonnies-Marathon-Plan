@@ -1,11 +1,11 @@
-const https = require("https");
+var https = require("https");
 
 function post(options, body) {
-  return new Promise((resolve, reject) => {
-    const req = https.request(options, (res) => {
-      let data = "";
-      res.on("data", (chunk) => (data += chunk));
-      res.on("end", () => resolve({ status: res.statusCode, body: data }));
+  return new Promise(function(resolve, reject) {
+    var req = https.request(options, function(res) {
+      var data = "";
+      res.on("data", function(c) { data += c; });
+      res.on("end", function() { resolve({ status: res.statusCode, body: data }); });
     });
     req.on("error", reject);
     req.write(body);
@@ -13,62 +13,53 @@ function post(options, body) {
   });
 }
 
-exports.handler = async (event) => {
-  const { code, error } = event.queryStringParameters || {};
-  const appUrl = process.env.URL;
+module.exports = async function(req, res) {
+  var code = req.query.code;
+  var error = req.query.error;
+  var appUrl = "https://bonnies-marathon-plan.vercel.app";
 
   if (error || !code) {
-    return {
-      statusCode: 302,
-      headers: { Location: `${appUrl}/?error=access_denied` },
-      body: "",
-    };
+    return res.redirect(appUrl + "/?error=access_denied");
   }
 
-  const payload = JSON.stringify({
+  var payload = JSON.stringify({
     client_id: process.env.STRAVA_CLIENT_ID,
     client_secret: process.env.STRAVA_CLIENT_SECRET,
-    code,
-    grant_type: "authorization_code",
+    code: code,
+    grant_type: "authorization_code"
   });
 
-  const options = {
+  var options = {
     hostname: "www.strava.com",
     path: "/oauth/token",
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "Content-Length": Buffer.byteLength(payload),
-    },
+      "Content-Length": Buffer.byteLength(payload)
+    }
   };
 
-  const result = await post(options, payload);
-  const data = JSON.parse(result.body);
+  try {
+    var result = await post(options, payload);
+    var data = JSON.parse(result.body);
 
-  if (!data.access_token) {
-    return {
-      statusCode: 302,
-      headers: { Location: `${appUrl}/?error=token_failed` },
-      body: "",
-    };
-  }
+    if (!data.access_token) {
+      return res.redirect(appUrl + "/?error=token_failed");
+    }
 
-  // Pass tokens to the frontend via URL fragment (never logged by servers)
-  const fragment = encodeURIComponent(
-    JSON.stringify({
+    var auth = {
       access_token: data.access_token,
       refresh_token: data.refresh_token,
       expires_at: data.expires_at,
       athlete: {
-        firstname: data.athlete?.firstname,
-        lastname: data.athlete?.lastname,
-      },
-    })
-  );
+        firstname: data.athlete ? data.athlete.firstname : "",
+        lastname: data.athlete ? data.athlete.lastname : ""
+      }
+    };
 
-  return {
-    statusCode: 302,
-    headers: { Location: `${appUrl}/?auth=${fragment}` },
-    body: "",
-  };
+    var fragment = encodeURIComponent(JSON.stringify(auth));
+    res.redirect(appUrl + "/?auth=" + fragment);
+  } catch(e) {
+    res.redirect(appUrl + "/?error=exception");
+  }
 };
