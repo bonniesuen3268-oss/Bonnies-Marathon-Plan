@@ -2,744 +2,980 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
-  <title>Bonnie's Marathon 🏅</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Bonnie's Marathon</title>
   <meta name="theme-color" content="#4361EE"/>
-  <meta name="apple-mobile-web-app-capable" content="yes"/>
-  <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
-  <meta name="apple-mobile-web-app-title" content="Bonnie's Marathon"/>
-  <link rel="manifest" href="/manifest.json"/>
-  <link rel="apple-touch-icon" href="/icon-192.png"/>
-  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.23.5/babel.min.js"></script>
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { background: #F4F7FF; font-family: system-ui, sans-serif; }
-    #root { min-height: 100vh; }
+    *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+    body{background:#F4F7FF;font-family:'Segoe UI',system-ui,sans-serif}
+    button:active{transform:scale(0.97)}
+    .bottom-nav{position:fixed;bottom:0;left:0;right:0;display:flex;background:#fff;border-top:1.5px solid #E8ECF8;box-shadow:0 -4px 20px rgba(67,97,238,0.08);z-index:100}
+    @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+    .fade-in{animation:fadeIn 0.25s ease}
+    input[type=date],input[type=number],select{font-family:inherit;background:#fff}
+    .modal-bg{position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:200;display:flex;align-items:flex-end}
+    .modal{background:#fff;border-radius:22px 22px 0 0;padding:20px 16px 32px;width:100%;max-height:85vh;overflow-y:auto}
   </style>
 </head>
 <body>
-  <div id="root"></div>
+<div id="root"><div style="display:flex;align-items:center;justify-content:center;height:100vh;flex-direction:column;gap:12px;color:#4361EE"><div style="font-size:40px">🏃‍♀️</div><div>Loading...</div></div></div>
+<script type="text/babel">
+const { useState, useEffect, useCallback, useMemo } = React;
+const P = {
+  bg:"#F4F7FF",electric:"#4361EE",violet:"#9B5DE5",teal:"#06D6A0",
+  orange:"#FF6B35",yellow:"#FFD166",coral:"#EF476F",
+  textDark:"#1A1A2E",textMid:"#4A4A6A",textSoft:"#9090B0",
+  border:"#E8ECF8",borderMid:"#D0D8F0"
+};
 
-  <script type="text/babel" data-presets="react">
-    const { useState, useEffect, useRef } = React;
+// ── GOAL PACES ───────────────────────────────────────────────────────────────
+// Sub-4hr marathon = 5:41/km. Training paces based on that.
+const GOAL_PACES = {
+  easy:    { min:"6:30", max:"7:00", label:"Easy",    why:"Builds aerobic base. Conversational pace." },
+  tempo:   { min:"5:50", max:"6:10", label:"Tempo",   why:"Comfortably hard. Builds lactate threshold." },
+  long:    { min:"6:20", max:"6:50", label:"Long Run", why:"Build endurance. Slightly faster than easy." },
+  race:    { min:"5:38", max:"5:44", label:"Race Pace",why:"Target race pace for sub-4hr." },
+  pilates: { label:"Cross-train",    why:"Recovery, strength, injury prevention." },
+};
 
-    // ── STRAVA CONFIG ──────────────────────────────────────────────────────────
-    // Strava calls are proxied through /api/strava-api to keep secrets safe
-    const API_BASE = "/api";
+function getSessionPace(session) {
+  var s = session.toLowerCase();
+  if (s.includes("pilates") || s.includes("strength") || s.includes("rest")) return GOAL_PACES.pilates;
+  if (s.includes("race day")) return GOAL_PACES.race;
+  if (s.includes("tempo")) return GOAL_PACES.tempo;
+  if (s.includes("long") || s.includes("peak")) return GOAL_PACES.long;
+  return GOAL_PACES.easy;
+}
 
-    // ── COLOUR PALETTE ─────────────────────────────────────────────────────────
-    const P = {
-      bg:"#F4F7FF", white:"#FFFFFF", electric:"#4361EE", violet:"#9B5DE5",
-      teal:"#06D6A0", orange:"#FF6B35", yellow:"#FFD166", coral:"#EF476F",
-      textDark:"#1A1A2E", textMid:"#4A4A6A", textSoft:"#9090B0",
-      border:"#E8ECF8", borderMid:"#D0D8F0",
-    };
+// ── COMPLETED WEEKS ──────────────────────────────────────────────────────────
+const COMPLETED_WEEKS = [
+  { week:"Week 1",  dates:"24-30 Nov 2025", planned:15, actual:11.0, runs:2 },
+  { week:"Week 2",  dates:"1-7 Dec 2025",   planned:16, actual:9.2,  runs:2 },
+  { week:"Week 3",  dates:"8-14 Dec 2025",  planned:17, actual:12.8, runs:3 },
+  { week:"Week 4",  dates:"15-21 Dec 2025", planned:16, actual:5.4,  runs:1 },
+  { week:"Week 5",  dates:"22-28 Dec 2025", planned:16, actual:18.9, runs:3 },
+  { week:"Week 6",  dates:"29 Dec-4 Jan",   planned:25, actual:21.8, runs:3 },
+  { week:"Week 7",  dates:"5-11 Jan 2026",  planned:28, actual:6.3,  runs:1 },
+  { week:"Week 8",  dates:"12-18 Jan 2026", planned:25, actual:12.7, runs:2 },
+  { week:"Week 9",  dates:"19-25 Jan 2026", planned:25, actual:30.6, runs:4 },
+  { week:"Week 10", dates:"26 Jan-1 Feb",   planned:30, actual:19.2, runs:3 },
+  { week:"Week 11", dates:"2-8 Feb 2026",   planned:32, actual:31.6, runs:3 },
+  { week:"Week 12", dates:"9-15 Feb 2026",  planned:25, actual:28.9, runs:3 },
+  { week:"Week 13", dates:"16-22 Feb 2026", planned:32, actual:29.0, runs:3 },
+  { week:"Week 14", dates:"23 Feb-1 Mar",   planned:34, actual:24.4, runs:3 },
+];
 
-    const COMPLETED_WEEKS = [
-      { week:"Week 1",  dates:"24–30 Nov 2025", planned:15, actual:11.0, runs:2 },
-      { week:"Week 2",  dates:"1–7 Dec 2025",   planned:16, actual:9.2,  runs:2 },
-      { week:"Week 3",  dates:"8–14 Dec 2025",  planned:17, actual:12.8, runs:3 },
-      { week:"Week 4",  dates:"15–21 Dec 2025", planned:16, actual:5.4,  runs:1 },
-      { week:"Week 5",  dates:"22–28 Dec 2025", planned:16, actual:18.9, runs:3 },
-      { week:"Week 6",  dates:"29 Dec–4 Jan",   planned:25, actual:21.8, runs:3 },
-      { week:"Week 7",  dates:"5–11 Jan 2026",  planned:28, actual:6.3,  runs:1 },
-      { week:"Week 8",  dates:"12–18 Jan 2026", planned:25, actual:12.7, runs:2 },
-      { week:"Week 9",  dates:"19–25 Jan 2026", planned:25, actual:30.6, runs:4 },
-      { week:"Week 10", dates:"26 Jan–1 Feb",   planned:30, actual:19.2, runs:3 },
-      { week:"Week 11", dates:"2–8 Feb 2026",   planned:32, actual:31.6, runs:3 },
-      { week:"Week 12", dates:"9–15 Feb 2026",  planned:25, actual:28.9, runs:3 },
-      { week:"Week 13", dates:"16–22 Feb 2026", planned:32, actual:29.0, runs:3 },
-      { week:"Week 14", dates:"23 Feb–1 Mar",   planned:34, actual:24.4, runs:3 },
-    ];
+// ── BASE PLAN ────────────────────────────────────────────────────────────────
+const BASE_PLAN = [
+  { week:"Week 15", startDate:"2026-03-02", target:30, sessions:["Easy 6km","Tempo 8km","Easy 7km","Long 9km","Pilates/Strength"] },
+  { week:"Week 16", startDate:"2026-03-09", target:35, sessions:["Easy 6km","Tempo 8km","Easy 7km","Long 14km","Pilates/Strength"] },
+  { week:"Week 17", startDate:"2026-03-16", target:38, sessions:["Easy 7km","Tempo 9km","Easy 7km","Long 15km","Pilates/Strength"] },
+  { week:"Week 18", startDate:"2026-03-23", target:32, sessions:["Easy 6km","Tempo 8km","Easy 6km","Long 12km","Pilates/Strength"] },
+  { week:"Week 19", startDate:"2026-03-30", target:28, sessions:["Easy 6km","Easy 7km","Easy 7km","Rest","Pilates/Strength"] },
+  { week:"Week 20", startDate:"2026-04-06", target:32, sessions:["Easy 6km","Tempo 7km","Easy 7km","Long 12km","Pilates/Strength"] },
+  { week:"Week 21", startDate:"2026-04-13", target:42, sessions:["Easy 7km","Tempo 9km","Easy 8km","Long 18km","Pilates/Strength"] },
+  { week:"Week 22", startDate:"2026-04-20", target:46, sessions:["Easy 7km","Tempo 10km","Easy 8km","Long 21km","Pilates/Strength"] },
+  { week:"Week 23", startDate:"2026-04-27", target:38, sessions:["Easy 7km","Tempo 9km","Easy 6km","Long 16km","Pilates/Strength"] },
+  { week:"Week 24", startDate:"2026-05-04", target:30, sessions:["Easy 6km","Easy 7km","Easy 7km","Rest","Pilates/Strength"] },
+  { week:"Week 25", startDate:"2026-05-11", target:50, sessions:["Easy 8km","Tempo 11km","Easy 9km","Long 22km","Pilates/Strength"] },
+  { week:"Week 26", startDate:"2026-05-18", target:53, sessions:["Easy 8km","Tempo 11km","Easy 9km","Long 25km","Pilates/Strength"] },
+  { week:"Week 27", startDate:"2026-05-25", target:55, sessions:["Easy 8km","Tempo 12km","Easy 9km","Long 26km","Pilates/Strength"] },
+  { week:"Week 28", startDate:"2026-06-01", target:48, sessions:["Easy 8km","Tempo 10km","Easy 8km","Long 22km","Pilates/Strength"] },
+  { week:"Week 29", startDate:"2026-06-08", target:28, sessions:["Easy 6km","Easy 7km","Easy 7km","Rest","Pilates/Strength"] },
+  { week:"Week 30", startDate:"2026-06-15", target:35, sessions:["Easy 7km","Tempo 7km","Easy 7km","Long 14km","Pilates/Strength"] },
+  { week:"Week 31", startDate:"2026-06-22", target:56, sessions:["Easy 8km","Tempo 12km","Easy 9km","Long 27km","Pilates/Strength"] },
+  { week:"Week 32", startDate:"2026-06-29", target:57, sessions:["Easy 8km","Tempo 12km","Easy 8km","PEAK Long 29km","Pilates/Strength"] },
+  { week:"Week 33", startDate:"2026-07-06", target:55, sessions:["Easy 8km","Tempo 11km","Easy 8km","Long 28km","Pilates/Strength"] },
+  { week:"Week 34", startDate:"2026-07-13", target:50, sessions:["Easy 7km","Tempo 11km","Easy 8km","Long 24km","Pilates/Strength"] },
+  { week:"Week 35", startDate:"2026-07-20", target:44, sessions:["Easy 7km","Tempo 10km","Easy 7km","Long 20km","Pilates/Strength"] },
+  { week:"Week 36", startDate:"2026-07-27", target:38, sessions:["Easy 6km","Tempo 9km","Easy 7km","Long 16km","Pilates/Strength"] },
+  { week:"Week 37", startDate:"2026-08-03", target:30, sessions:["Easy 6km","Tempo 8km","Easy 6km","Long 10km","Pilates/Strength"] },
+  { week:"Week 38", startDate:"2026-08-10", target:22, sessions:["Easy 5km","Tempo 7km","Easy 5km","Long 5km","Pilates/Strength"] },
+  { week:"Week 39", startDate:"2026-08-17", target:15, sessions:["Easy 5km","Easy 5km","Easy 5km","Pilates/Strength"] },
+  { week:"Week 40", startDate:"2026-08-24", target:8,  sessions:["Easy 3km","Easy 5km","RACE DAY 30 Aug"] },
+];
 
-    const PLAN_WEEKS = [
-      { week:"Week 15", dates:"2–8 Mar 2026",      target:30,  period:"period", sessions:["🐣 Easy 6km","🐣 Easy 8km","🐣 Easy 7km","🧘 Pilates","💪 Strength"] },
-      { week:"Week 16", dates:"9–15 Mar 2026",     target:35,  period:null,     sessions:["🐣 Easy 6km","🔥 Tempo 8km ⭐","🐣 Easy 7km","🌟 Long 14km","🧘 Pilates","💪 Strength"] },
-      { week:"Week 17", dates:"16–22 Mar 2026",    target:38,  period:null,     sessions:["🐣 Easy 7km","🔥 Tempo 9km ⭐","🐣 Easy 7km","🌟 Long 15km","🧘 Pilates","💪 Strength"] },
-      { week:"Week 18", dates:"23–29 Mar 2026",    target:32,  period:"pre",    sessions:["🐣 Easy 6km","🔥 Tempo 8km","🐣 Easy 6km","🌟 Long 12km","🧘 Pilates","💪 Strength"] },
-      { week:"Week 19", dates:"30 Mar–5 Apr 2026", target:28,  period:"period", sessions:["🐣 Easy 6km","🐣 Easy 7km","🐣 Easy 7km","😴 Rest","🧘 Pilates"] },
-      { week:"Week 20", dates:"6–12 Apr 2026",     target:32,  period:"period", sessions:["🐣 Easy 6km","🔥 Tempo 7km","🐣 Easy 7km","🌟 Long 12km","🧘 Pilates"] },
-      { week:"Week 21", dates:"13–19 Apr 2026",    target:42,  period:null,     sessions:["🐣 Easy 7km","🔥 Tempo 9km ⭐","🐣 Easy 8km","🌟 Long 18km","🧘 Pilates","💪 Strength"] },
-      { week:"Week 22", dates:"20–26 Apr 2026",    target:46,  period:null,     sessions:["🐣 Easy 7km","🔥 Tempo 10km ⭐","🐣 Easy 8km","🌟 Long 21km","🧘 Pilates","💪 Strength"] },
-      { week:"Week 23", dates:"27 Apr–3 May 2026", target:38,  period:"pre",    sessions:["🐣 Easy 7km","🔥 Tempo 9km","🐣 Easy 6km","🌟 Long 16km","🧘 Pilates","💪 Strength"] },
-      { week:"Week 24", dates:"4–10 May 2026",     target:30,  period:"period", sessions:["🐣 Easy 6km","🐣 Easy 7km","🐣 Easy 7km","😴 Rest","🧘 Pilates"] },
-      { week:"Week 25", dates:"11–17 May 2026",    target:50,  period:null,     sessions:["🐣 Easy 8km","🔥 Tempo 11km ⭐","🐣 Easy 9km","🌟 Long 22km","🧘 Pilates","💪 Strength"] },
-      { week:"Week 26", dates:"18–24 May 2026",    target:53,  period:null,     sessions:["🐣 Easy 8km","🔥 Tempo 11km ⭐","🐣 Easy 9km","🌟 Long 25km","🧘 Pilates","💪 Strength"] },
-      { week:"Week 27", dates:"25–31 May 2026",    target:55,  period:null,     sessions:["🐣 Easy 8km","🔥 Tempo 12km ⭐","🐣 Easy 9km","🌟 Long 26km","🧘 Pilates","💪 Strength"] },
-      { week:"Week 28", dates:"1–7 Jun 2026",      target:48,  period:"pre",    sessions:["🐣 Easy 8km","🔥 Tempo 10km","🐣 Easy 8km","🌟 Long 22km","🧘 Pilates","💪 Strength"] },
-      { week:"Week 29", dates:"8–14 Jun 2026",     target:28,  period:"period", sessions:["🐣 Easy 6km","🐣 Easy 7km","🐣 Easy 7km","😴 Rest","🧘 Pilates"] },
-      { week:"Week 30", dates:"15–21 Jun 2026",    target:35,  period:"period", sessions:["🐣 Easy 7km","🔥 Tempo 7km","🐣 Easy 7km","🌟 Long 14km","🧘 Pilates"] },
-      { week:"Week 31", dates:"22–28 Jun 2026",    target:56,  period:null,     sessions:["🐣 Easy 8km","🔥 Tempo 12km ⭐","🐣 Easy 9km","🌟 Long 27km","🧘 Pilates","💪 Strength"] },
-      { week:"Week 32", dates:"29 Jun–5 Jul 2026", target:57,  period:null,     sessions:["🐣 Easy 8km","🔥 Tempo 12km ⭐","🐣 Easy 8km","🌟 PEAK Long 29km 🏆","🧘 Pilates","💪 Strength"] },
-      { week:"Week 33", dates:"6–12 Jul 2026",     target:55,  period:null,     sessions:["🐣 Easy 8km","🔥 Tempo 11km ⭐","🐣 Easy 8km","🌟 Long 28km","🧘 Pilates","💪 Strength"] },
-      { week:"Week 34", dates:"13–19 Jul 2026",    target:50,  period:null,     sessions:["🐣 Easy 7km","🔥 Tempo 11km ⭐","🐣 Easy 8km","🌟 Long 24km","🧘 Pilates","💪 Strength"] },
-      { week:"Week 35", dates:"20–26 Jul 2026",    target:44,  period:null,     sessions:["🐣 Easy 7km","🔥 Tempo 10km ⭐","🐣 Easy 7km","🌟 Long 20km","🧘 Pilates","💪 Strength"] },
-      { week:"Week 36", dates:"27 Jul–2 Aug 2026", target:38,  period:null,     sessions:["🐣 Easy 6km","🔥 Tempo 9km ⭐","🐣 Easy 7km","🌟 Long 16km","🧘 Pilates"] },
-      { week:"Week 37", dates:"3–9 Aug 2026",      target:30,  period:null,     sessions:["🐣 Easy 6km","🔥 Tempo 8km ⭐","🐣 Easy 6km","🌟 Long 10km","🧘 Pilates"] },
-      { week:"Week 38", dates:"10–16 Aug 2026",    target:22,  period:null,     sessions:["🐣 Easy 5km","🔥 Tempo 7km ⭐","🐣 Easy 5km","🌟 Long 5km","🧘 Pilates"] },
-      { week:"Week 39", dates:"17–23 Aug 2026",    target:15,  period:null,     sessions:["🐣 Easy 5km","🐣 Easy 5km","🐣 Easy 5km","🧘 Pilates"] },
-      { week:"Week 40", dates:"24–30 Aug 2026",    target:8,   period:null,     sessions:["🐣 Easy 3km (Tue)","🐣 Easy 5km (Thu)","🏁 RACE DAY SUNDAY 30 Aug 🎉"] },
-    ];
+const CYCLE_PHASES = [
+  { phase:"Menstrual",  emoji:"🩸", color:"#EF476F", mod:"REDUCE",
+    training:"Easy runs only. Skip tempo if tired. Rest IS training.",
+    nutrition:"Iron-rich foods, magnesium, anti-inflammatory.",
+    discharge:"Light to heavy bleeding. Heaviest days 2-3.",
+    mood:"Energy low, may feel fatigued. Be kind to yourself.",
+    fertility:"Not fertile.", symptoms:["Cramps","Fatigue","Bloating","Lower back pain"] },
+  { phase:"Follicular", emoji:"🌷", color:"#4361EE", mod:"NORMAL",
+    training:"Rising energy! Great for tempo runs and building mileage.",
+    nutrition:"Higher carbs, lean protein, fermented foods.",
+    discharge:"Dry then white/creamy as ovulation approaches.",
+    mood:"Optimistic, motivated. Best for hard training.",
+    fertility:"Increasing — egg maturing.", symptoms:["Rising energy","Better mood","Motivation"] },
+  { phase:"Ovulation",  emoji:"🌺", color:"#FF6B35", mod:"PEAK",
+    training:"PEAK window! Schedule longest runs and hardest tempos here.",
+    nutrition:"Omega-3s, zinc, collagen, antioxidants.",
+    discharge:"Clear stretchy egg-white discharge — fertility sign!",
+    mood:"Peak confidence, high energy. Great for races.",
+    fertility:"PEAK fertile window — days around ovulation.", symptoms:["Peak energy","High confidence","High libido"] },
+  { phase:"Luteal",     emoji:"🍂", color:"#9B5DE5", mod:"TAPER",
+    training:"Moderate early, wind down last 3-4 days before period.",
+    nutrition:"Magnesium (dark choc, avocado), complex carbs, cut caffeine.",
+    discharge:"Thicker white/cloudy, decreases near period.",
+    mood:"Early positive, late PMS may bring mood changes.",
+    fertility:"Not fertile after ovulation.", symptoms:["Bloating","Cravings","Mood changes","Fatigue"] },
+];
 
-    const CYCLE_PHASES = [
-      { phase:"🩸 Menstrual",  days:"Days 1–5",   color:"#EF476F", training:"Easy runs only. Skip long & tempo if tired. Rest is training!", nutrition:"Iron-rich foods (spinach, red meat, dark choc 🍫), magnesium, anti-inflammatory." },
-      { phase:"🌷 Follicular", days:"Days 6–13",  color:"#4361EE", training:"Best time for tempo & hard work ⭐. Energy rising — push it!", nutrition:"Higher carbs 🍌, lean protein, cruciferous veg. Fuel those sessions!" },
-      { phase:"🌺 Ovulation",  days:"Days 14–17", color:"#FF6B35", training:"PEAK window 🌟. Longest runs, hardest tempos. You'll feel unstoppable!", nutrition:"Anti-inflammatory omega-3s, zinc, collagen (bone broth) 🍊" },
-      { phase:"🍂 Luteal",     days:"Days 18–28", color:"#9B5DE5", training:"⚠️ Wind down last 3–4 days. Easy + moderate only. Prioritise sleep 😴", nutrition:"Magnesium (dark choc 🍫, avocado), complex carbs 🍠, cut caffeine 🍵" },
-    ];
+const STRAVA_HISTORY = {
+  "2025-12-02":{ km:5.05, pace:"6:31", duration:"32:58", notes:"Syd Mara Run 5" },
+  "2025-12-04":{ km:4.11, pace:"6:07", duration:"25:11", notes:"Syd Mara Run 6" },
+  "2025-12-12":{ km:9.29, pace:"6:20", duration:"58:55", notes:"Syd Mara Run 7" },
+  "2025-12-15":{ km:5.41, pace:"6:12", duration:"33:36", notes:"Syd Mara Run 10" },
+  "2025-12-22":{ km:7.04, pace:"6:23", duration:"44:58", notes:"Syd Mara Run 10" },
+  "2025-12-27":{ km:6.83, pace:"6:32", duration:"44:43", notes:"Syd Mara Run 12" },
+  "2025-12-30":{ km:10.09,pace:"6:23", duration:"64:33", notes:"Syd Mara Run 13" },
+  "2026-01-01":{ km:6.87, pace:"6:12", duration:"42:42", notes:"Syd Mara Run 14" },
+  "2026-01-04":{ km:5.07, pace:"6:08", duration:"31:12", notes:"Syd Mara Run 16" },
+  "2026-01-06":{ km:6.29, pace:"6:21", duration:"39:57", notes:"Syd Mara Run 17" },
+  "2026-01-11":{ km:11.69,pace:"6:23", duration:"74:40", notes:"Syd Mara Run 18" },
+  "2026-01-12":{ km:6.87, pace:"6:17", duration:"43:14", notes:"Syd Mara Run 19" },
+  "2026-01-16":{ km:5.85, pace:"6:15", duration:"36:38", notes:"Syd Mara Run 20" },
+  "2026-01-20":{ km:6.18, pace:"6:07", duration:"37:52", notes:"Syd Mara Run 21" },
+  "2026-01-23":{ km:10.62,pace:"6:14", duration:"66:11", notes:"Syd Mara Run 24" },
+  "2026-01-26":{ km:6.81, pace:"5:51", duration:"39:56", notes:"Syd Mara Run 25" },
+  "2026-01-28":{ km:6.72, pace:"6:14", duration:"41:53", notes:"Syd Mara Run 26" },
+  "2026-01-29":{ km:5.73, pace:"6:28", duration:"37:05", notes:"TSRC Bondi" },
+  "2026-02-02":{ km:5.71, pace:"5:49", duration:"33:13", notes:"Syd Mara Run 28" },
+  "2026-02-03":{ km:12.78,pace:"6:13", duration:"79:34", notes:"Syd Mara Run 29" },
+  "2026-02-05":{ km:13.07,pace:"6:18", duration:"82:26", notes:"Morning Run" },
+  "2026-02-09":{ km:10.51,pace:"6:13", duration:"65:24", notes:"Syd Mara Run 30" },
+  "2026-02-12":{ km:11.39,pace:"6:08", duration:"69:55", notes:"Morning Run" },
+  "2026-02-14":{ km:6.98, pace:"5:56", duration:"41:27", notes:"Morning Run" },
+  "2026-02-17":{ km:6.84, pace:"6:02", duration:"41:19", notes:"Morning Run" },
+  "2026-02-26":{ km:16.02,pace:"6:10", duration:"98:52", notes:"Morning Run" },
+};
 
-    // Dec 2025 – Feb 2026 marathon training runs (from Strava export)
-    const STRAVA_HISTORY = {
-      "2025-12-02":  { km:5.05,  pace:"6:31", duration:"32:58", elevation:"12",    notes:"Syd Mara Run. 5",               source:"strava" },
-      "2025-12-04":  { km:4.11,  pace:"6:07", duration:"25:11", elevation:"10.8",  notes:"Syd Mara Run. 6",               source:"strava" },
-      "2025-12-08":  { km:1.94,  pace:"5:41", duration:"11:01", elevation:"0",     notes:"Syd Mara Run 7.5",              source:"strava" },
-      "2025-12-09":  { km:1.64,  pace:"6:08", duration:"10:04", elevation:"0",     notes:"Syd Mara Run 7.55",             source:"strava" },
-      "2025-12-12":  { km:9.29,  pace:"6:20", duration:"58:55", elevation:"8.7",   notes:"Syd Mara Run. 7",               source:"strava" },
-      "2025-12-15":  { km:5.41,  pace:"6:12", duration:"33:36", elevation:"0",     notes:"Syd Mara Run. 10",              source:"strava" },
-      "2025-12-22":  { km:7.04,  pace:"6:23", duration:"44:58", elevation:"13.4",  notes:"Syd Mara Run. 10",              source:"strava" },
-      "2025-12-23":  { km:5.01,  pace:"6:38", duration:"33:15", elevation:"8.2",   notes:"Syd Mara Run. 11",              source:"strava" },
-      "2025-12-27":  { km:6.83,  pace:"6:32", duration:"44:43", elevation:"6.8",   notes:"Syd Mara Run. 12",              source:"strava" },
-      "2025-12-30":  { km:10.09, pace:"6:23", duration:"64:33", elevation:"22.6",  notes:"Syd Mara Run. 13",              source:"strava" },
-      "2026-01-01":  { km:6.87,  pace:"6:12", duration:"42:42", elevation:"17.6",  notes:"Syd Mara Run. 14",              source:"strava" },
-      "2026-01-03":  { km:4.89,  pace:"5:46", duration:"28:17", elevation:"57.9",  notes:"Syd Mara Run. 15 - Interval",   source:"strava" },
-      "2026-01-04":  { km:5.07,  pace:"6:08", duration:"31:12", elevation:"10.3",  notes:"Syd Mara Run. 16",              source:"strava" },
-      "2026-01-06":  { km:6.29,  pace:"6:21", duration:"39:57", elevation:"6.8",   notes:"Syd Mara Run. 17",              source:"strava" },
-      "2026-01-11":  { km:11.69, pace:"6:23", duration:"74:40", elevation:"61.3",  notes:"Syd Mara Run. 18",              source:"strava" },
-      "2026-01-12":  { km:6.87,  pace:"6:17", duration:"43:14", elevation:"14.9",  notes:"Syd Mara Run. 19",              source:"strava" },
-      "2026-01-16":  { km:5.85,  pace:"6:15", duration:"36:38", elevation:"82.5",  notes:"Syd Mara Run. 20",              source:"strava" },
-      "2026-01-20a": { km:6.18,  pace:"6:07", duration:"37:52", elevation:"25.8",  notes:"Syd Mara Run. 21",              source:"strava" },
-      "2026-01-20b": { km:6.85,  pace:"6:14", duration:"42:48", elevation:"16.8",  notes:"Syd Mara Run. 22",              source:"strava" },
-      "2026-01-23a": { km:7.01,  pace:"6:06", duration:"42:46", elevation:"16.8",  notes:"Syd Mara Run. 23",              source:"strava" },
-      "2026-01-23b": { km:10.62, pace:"6:14", duration:"66:11", elevation:"5.3",   notes:"Syd Mara Run. 24",              source:"strava" },
-      "2026-01-26":  { km:6.81,  pace:"5:51", duration:"39:56", elevation:"6.5",   notes:"Syd Mara Run. 25",              source:"strava" },
-      "2026-01-28":  { km:6.72,  pace:"6:14", duration:"41:53", elevation:"6.6",   notes:"Syd Mara Run. 26",              source:"strava" },
-      "2026-01-29":  { km:5.73,  pace:"6:28", duration:"37:05", elevation:"109",   notes:"Syd Mara Run. 27 - TSRC Bondi", source:"strava" },
-      "2026-02-02":  { km:5.71,  pace:"5:49", duration:"33:13", elevation:"0",     notes:"Syd Mara Run. 28",              source:"strava" },
-      "2026-02-03":  { km:12.78, pace:"6:13", duration:"79:34", elevation:"14.2",  notes:"Syd Mara Run. 29",              source:"strava" },
-      "2026-02-05":  { km:13.07, pace:"6:18", duration:"82:26", elevation:"11.1",  notes:"Morning Run",                   source:"strava" },
-      "2026-02-09":  { km:10.51, pace:"6:13", duration:"65:24", elevation:"10.6",  notes:"Syd Mara Run. 30",              source:"strava" },
-      "2026-02-12":  { km:11.39, pace:"6:08", duration:"69:55", elevation:"13.9",  notes:"Morning Run",                   source:"strava" },
-      "2026-02-14":  { km:6.98,  pace:"5:56", duration:"41:27", elevation:"7.1",   notes:"Morning Run",                   source:"strava" },
-      "2026-02-17":  { km:6.84,  pace:"6:02", duration:"41:19", elevation:"6.5",   notes:"Morning Run",                   source:"strava" },
-      "2026-02-26":  { km:16.02, pace:"6:10", duration:"98:52", elevation:"11.5",  notes:"Morning Run",                   source:"strava" },
-    };
+// ── HELPERS ──────────────────────────────────────────────────────────────────
+function mpsToMmSs(mps) {
+  if (!mps || mps<=0) return "";
+  var s=1000/mps, m=Math.floor(s/60);
+  return m+":"+Math.round(s%60).toString().padStart(2,"0");
+}
+function paceToMin(p) {
+  if (!p) return null;
+  var parts=p.split(":"); if(parts.length!==2) return null;
+  return parseInt(parts[0])+parseInt(parts[1])/60;
+}
+function parseStravaActivities(acts) {
+  var runs={};
+  (acts||[]).filter(function(a){ return a.type==="Run"&&a.distance>=500; }).forEach(function(a){
+    var d=new Date(a.start_date_local).toISOString().substring(0,10);
+    var key=runs[d]?d+"-"+a.id:d;
+    var mt=a.moving_time,mm=Math.floor(mt/60),ms=mt%60;
+    runs[key]={ km:+(a.distance/1000).toFixed(2), pace:mpsToMmSs(a.average_speed), duration:mm+":"+ms.toString().padStart(2,"0"), notes:a.name||"Run" };
+  });
+  return runs;
+}
 
-    // ── Helper: m/s → MM:SS pace ──────────────────────────────────────────────
-    function mpsToMmSs(mps) {
-      if (!mps || isNaN(mps) || mps <= 0) return "";
-      const secsPerKm = 1000 / mps;
-      const m = Math.floor(secsPerKm / 60);
-      const s = Math.round(secsPerKm % 60);
-      return `${m}:${s.toString().padStart(2, "0")}`;
+// Cycle helpers
+function getPhaseIdx(day, cycleLen) {
+  var cl = cycleLen || 28;
+  var ovDay = cl - 14; // ovulation
+  if (day<=5) return 0; // menstrual
+  if (day<=ovDay-1) return 1; // follicular
+  if (day<=ovDay+3) return 2; // ovulation
+  return 3; // luteal
+}
+function getDayInCycle(periods, cycleLen) {
+  if (!periods||periods.length===0) return 10;
+  var sorted=periods.slice().sort(function(a,b){ return new Date(b.start)-new Date(a.start); });
+  var pStart=new Date(sorted[0].start);
+  var today=new Date(); today.setHours(0,0,0,0);
+  var diff=Math.floor((today-pStart)/86400000)+1;
+  var cl=cycleLen||28;
+  while(diff>cl) diff-=cl;
+  return Math.max(1,diff);
+}
+function getWeekPhase(weekStartDate, periods, cycleLen) {
+  if (!periods||periods.length===0) return null;
+  var wDate=new Date(weekStartDate);
+  var sorted=periods.slice().sort(function(a,b){ return new Date(b.start)-new Date(a.start); });
+  var pStart=new Date(sorted[0].start);
+  var cl=cycleLen||28;
+  var diff=Math.floor((wDate-pStart)/86400000)+1;
+  while(diff>cl) diff-=cl;
+  while(diff<1) diff+=cl;
+  return { phaseIdx:getPhaseIdx(diff,cl), day:diff };
+}
+
+// Build live plan with time-off and cycle adjustments
+function buildLivePlan(timeOffWeeks, periods, cycleLen) {
+  return BASE_PLAN.map(function(wk) {
+    var tof = (timeOffWeeks||[]).find(function(t){ return t.week===wk.week; });
+    var ci = getWeekPhase(wk.startDate, periods, cycleLen);
+    var ph = ci ? CYCLE_PHASES[ci.phaseIdx] : null;
+    var adjustedTarget = wk.target;
+    var note = "";
+    if (tof) {
+      adjustedTarget = Math.round(wk.target * (tof.pct/100));
+      note = "Holiday: "+tof.pct+"% capacity";
+    } else if (ph) {
+      if (ph.mod==="REDUCE") { adjustedTarget=Math.round(wk.target*0.75); note="Period week: reduced"; }
+      else if (ph.mod==="PEAK") { note="Peak energy: push it!"; }
+      else if (ph.mod==="TAPER") { adjustedTarget=Math.round(wk.target*0.9); note="Luteal: slight taper"; }
     }
+    return Object.assign({}, wk, { adjustedTarget:adjustedTarget, cycleInfo:ci, phase:ph, note:note, isTimeOff:!!tof });
+  });
+}
 
-    // ── Helper: parse Strava activities from API into our run format ───────────
-    function parseStravaActivities(activities) {
-      const runs = {};
-      (activities || [])
-        .filter(a => a.type === "Run" && a.distance >= 500)
-        .forEach(a => {
-          const date = new Date(a.start_date_local);
-          const dateKey = date.toISOString().substring(0, 10);
-          // Use timestamp suffix for same-day runs
-          const key = runs[dateKey] ? `${dateKey}-${a.id}` : dateKey;
-          runs[key] = {
-            km: +(a.distance / 1000).toFixed(2),
-            pace: mpsToMmSs(a.average_speed),
-            duration: (() => {
-              const m = Math.floor(a.moving_time / 60);
-              const s = a.moving_time % 60;
-              return `${m}:${s.toString().padStart(2,"0")}`;
-            })(),
-            elevation: String(Math.round(a.total_elevation_gain || 0)),
-            notes: a.name || "Run",
-            source: "strava",
-          };
-        });
-      return runs;
-    }
+// Fitness score (simple: % of planned km completed, weighted recent)
+function calcFitnessScore(completedWeeks) {
+  var recent=completedWeeks.slice(-6);
+  var score=recent.reduce(function(s,w){ return s+(w.actual/w.planned); },0)/recent.length;
+  return Math.min(1, score);
+}
 
-    // ── Auth helpers ───────────────────────────────────────────────────────────
-    function saveAuth(auth) {
-      try { localStorage.setItem("bonnie_strava_auth", JSON.stringify(auth)); } catch {}
-    }
-    function loadAuth() {
-      try { return JSON.parse(localStorage.getItem("bonnie_strava_auth")); } catch { return null; }
-    }
-    function clearAuth() {
-      try { localStorage.removeItem("bonnie_strava_auth"); } catch {}
-    }
+// Goal assessment
+function assessGoal(allRuns, completedWeeks, sessions, livePlan) {
+  var paces=Object.values(allRuns).map(function(r){ return paceToMin(r.pace); }).filter(Boolean);
+  var avgP=paces.length>0?paces.reduce(function(s,p){ return s+p; },0)/paces.length:6.5;
+  var goalPace=5.683; // 5:41
+  var paceGap=avgP-goalPace; // positive = slower than goal
+  var fitness=calcFitnessScore(completedWeeks);
+  var totalPlanned=completedWeeks.reduce(function(s,w){ return s+w.planned; },0);
+  var totalActual=completedWeeks.reduce(function(s,w){ return s+w.actual; },0);
+  var adherence=totalActual/totalPlanned;
 
-    // ── Shared UI components ──────────────────────────────────────────────────
-    function Counter({ to, duration=1000 }) {
-      const [val, setVal] = useState(0);
-      useEffect(() => {
-        let start = null;
-        const step = (ts) => {
-          if (!start) start = ts;
-          const p = Math.min((ts - start) / duration, 1);
-          setVal(Math.round(to * p));
-          if (p < 1) requestAnimationFrame(step);
-        };
-        requestAnimationFrame(step);
-      }, [to]);
-      return <span>{val}</span>;
-    }
+  // Current week done?
+  var curWk=livePlan.find(function(w){ return w.week==="Week 16"; });
+  var weekDone=0,weekTotal=0;
+  if(curWk){ weekTotal=curWk.sessions.length; weekDone=curWk.sessions.filter(function(_,i){ return sessions["Week 16_"+i]; }).length; }
 
-    function FloatingParticles() {
-      const items = ["🏃‍♀️","✨","⚡","🎯","💨","🌟","🏅","💪","🔥","⭐"];
-      return (
-        <div style={{ position:"fixed", inset:0, pointerEvents:"none", overflow:"hidden", zIndex:0 }}>
-          <style>{`@keyframes floatUp{0%{transform:translateY(100vh) rotate(0deg);opacity:0}10%{opacity:.35}90%{opacity:.15}100%{transform:translateY(-10vh) rotate(360deg);opacity:0}}`}</style>
-          {items.map((e,i) => <div key={i} style={{ position:"absolute", bottom:-40, left:`${6+i*9}%`, fontSize:12+(i%3)*3, animation:`floatUp ${14+i*2}s ${i*1.8}s infinite linear`, opacity:0 }}>{e}</div>)}
+  var status, color, message, tip;
+  if (paceGap > 0.6 && adherence < 0.75) {
+    status="Needs Focus"; color=P.coral;
+    message="You're currently "+Math.round(paceGap*60)+"sec/km off goal pace and below planned km. Sub-4 is still achievable but needs consistency.";
+    tip="Focus on completing tempo runs at 5:50-6:10/km. Don't skip the long runs!";
+  } else if (paceGap > 0.4) {
+    status="Building"; color=P.orange;
+    message="Pace gap is "+Math.round(paceGap*60)+"sec/km. You're building well — keep pushing tempo sessions.";
+    tip="Nail your tempo runs at 5:50-6:10/km. Each one closes the gap.";
+  } else if (adherence >= 0.9 && paceGap < 0.3) {
+    status="On Track"; color=P.teal;
+    message="Great consistency! Pace is getting close to goal. Keep up the long runs.";
+    tip="You're on track. Don't skip recovery — it's when fitness is built.";
+  } else {
+    status="Good Progress"; color="#06D6A0";
+    message="Solid progress! Stay consistent and the pace will come.";
+    tip="Keep showing up. Consistency beats perfection.";
+  }
+
+  var weekStatus, weekColor;
+  if(weekTotal===0){ weekStatus=""; weekColor=P.textSoft; }
+  else if(weekDone===weekTotal){ weekStatus="Week complete!"; weekColor=P.teal; }
+  else if(weekDone>=Math.ceil(weekTotal/2)){ weekStatus="Great week!"; weekColor=P.teal; }
+  else if(weekDone===0){ weekStatus="Not started"; weekColor=P.textSoft; }
+  else { weekStatus="In progress"; weekColor=P.orange; }
+
+  return { status, color, message, tip, paceGap, adherence, fitness, weekStatus, weekColor, weekDone, weekTotal };
+}
+
+// ── BAR CHART ────────────────────────────────────────────────────────────────
+function BarChart({ pastData, liveWeek, sessions }) {
+  const [hov, setHov] = useState(null);
+  // Calculate live week actual from sessions + strava
+  var liveActual = 0;
+  if (liveWeek) {
+    liveWeek.sessions.forEach(function(s,i){
+      if (sessions["Week 16_"+i]) {
+        var km=parseFloat(s.match(/(\d+)km/)?.[1]||0);
+        liveActual+=km;
+      }
+    });
+  }
+  var allData = pastData.concat(liveWeek?[{ week:"Week 16", dates:"This week", planned:liveWeek.target, actual:liveActual, live:true }]:[]);
+  var max=Math.max.apply(null,allData.map(function(d){ return Math.max(d.planned||0,d.actual||0); }));
+  if(max===0) max=1;
+  return (
+    <div>
+      {hov!==null&&(
+        <div style={{background:P.textDark,color:"#fff",borderRadius:12,padding:"8px 12px",marginBottom:8,fontSize:11}}>
+          <strong>{allData[hov].week}</strong> {allData[hov].live?"(this week — ticking off sessions)":""}<br/>
+          <span style={{color:P.teal}}>Actual: {allData[hov].actual.toFixed(1)}km</span>&nbsp;
+          <span style={{color:"rgba(255,255,255,0.5)"}}>Planned: {allData[hov].planned}km</span>
+          {allData[hov].runs&&<span style={{color:P.yellow}}>&nbsp;Runs: {allData[hov].runs}</span>}
         </div>
-      );
-    }
-
-    function Ring({ pct, size=80, stroke=7, color, label, sub }) {
-      const r = (size-stroke*2)/2, circ = 2*Math.PI*r;
-      return (
-        <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:4 }}>
-          <div style={{ position:"relative", width:size, height:size }}>
-            <svg width={size} height={size} style={{ transform:"rotate(-90deg)" }}>
-              <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={`${color}20`} strokeWidth={stroke}/>
-              <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth={stroke}
-                strokeDasharray={circ} strokeDashoffset={circ*(1-pct/100)} strokeLinecap="round"
-                style={{ transition:"stroke-dashoffset 1.2s ease" }}/>
-            </svg>
-            <div style={{ position:"absolute", inset:0, display:"flex", alignItems:"center", justifyContent:"center" }}>
-              <div style={{ fontSize:14, fontWeight:800, color:P.textDark }}>{pct}<span style={{ fontSize:9 }}>%</span></div>
+      )}
+      <div style={{display:"flex",alignItems:"flex-end",gap:3,height:72,overflowX:"auto",paddingBottom:2}}>
+        {allData.map(function(d,i){
+          var aH=Math.max(Math.round((d.actual/max)*66),2);
+          var pH=Math.max(Math.round((d.planned/max)*66),2);
+          var over=d.actual>=d.planned;
+          var sel=hov===i;
+          return (
+            <div key={i} style={{display:"flex",alignItems:"flex-end",gap:1,cursor:"pointer",flexShrink:0}}
+              onMouseEnter={function(){ setHov(i); }} onMouseLeave={function(){ setHov(null); }}
+              onClick={function(){ setHov(sel?null:i); }}>
+              <div style={{width:9,height:pH,background:sel?P.electric+"90":P.electric+"25",borderRadius:"3px 3px 0 0"}}/>
+              <div style={{width:9,height:aH,background:sel?(over?P.teal:P.orange):(over?P.teal+"CC":P.orange+"AA"),borderRadius:"3px 3px 0 0",
+                outline:d.live?"2px dashed "+P.electric:"none",outlineOffset:1}}/>
             </div>
-          </div>
-          <div style={{ fontSize:11, fontWeight:700, color:P.textDark, textAlign:"center" }}>{label}</div>
-          {sub && <div style={{ fontSize:9, color:P.textSoft, textAlign:"center" }}>{sub}</div>}
+          );
+        })}
+      </div>
+      <div style={{fontSize:9,color:P.textSoft,marginTop:3}}>Tap bar for details · Current week updates as you tick off sessions</div>
+    </div>
+  );
+}
+
+// ── SESSION ITEM ─────────────────────────────────────────────────────────────
+function SessionItem({ session, done, onToggle, showPace }) {
+  const [open, setOpen] = useState(false);
+  var pace = getSessionPace(session);
+  var isCross = session.toLowerCase().includes("pilates")||session.toLowerCase().includes("strength")||session.toLowerCase().includes("rest");
+  var isRace = session.toLowerCase().includes("race day");
+  var emoji = done?"✅":isRace?"🏁":isCross?"🧘":session.includes("Tempo")?"🔥":session.includes("Long")||session.includes("PEAK")?"🌟":"🐣";
+  return (
+    <div style={{borderBottom:"1px solid "+P.border}}>
+      <div style={{display:"flex",alignItems:"center",gap:9,padding:"8px 0",cursor:"pointer"}} onClick={onToggle}>
+        <div style={{width:22,height:22,borderRadius:"50%",border:"2px solid "+(done?P.teal:P.borderMid),background:done?P.teal:"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+          {done&&<span style={{color:"#fff",fontSize:11,fontWeight:900}}>✓</span>}
         </div>
-      );
-    }
+        <span style={{flex:1,fontSize:12,color:done?P.textSoft:P.textDark,textDecoration:done?"line-through":"none",fontWeight:done?400:600}}>{emoji} {session}</span>
+        {showPace&&!isCross&&!isRace&&(
+          <span onClick={function(e){e.stopPropagation();setOpen(!open);}} style={{fontSize:9,fontWeight:700,color:pace===GOAL_PACES.tempo?P.orange:P.electric,background:(pace===GOAL_PACES.tempo?P.orange:P.electric)+"15",borderRadius:6,padding:"2px 6px",cursor:"pointer",flexShrink:0}}>
+            {pace.min}-{pace.max}
+          </span>
+        )}
+      </div>
+      {open&&(
+        <div style={{background:P.electric+"08",borderRadius:10,padding:"8px 10px",marginBottom:8,fontSize:11}}>
+          <div style={{fontWeight:800,color:P.electric,marginBottom:2}}>{pace.label} pace: {pace.min}–{pace.max}/km</div>
+          <div style={{color:P.textMid}}>{pace.why}</div>
+          {!isCross&&<div style={{color:P.teal,marginTop:4,fontWeight:600}}>Race pace target: 5:38–5:44/km</div>}
+        </div>
+      )}
+    </div>
+  );
+}
 
-    // ── MAIN APP ──────────────────────────────────────────────────────────────
-    function App() {
-      const [tab, setTab] = useState("dashboard");
-      const [auth, setAuth] = useState(null);
-      const [stravaRuns, setStravaRuns] = useState({});
-      const [syncStatus, setSyncStatus] = useState("idle"); // idle | loading | ok | error
-      const [completedSessions, setCompletedSessions] = useState({});
-      const [cycleDay, setCycleDay] = useState(10);
-      const [expandedWeek, setExpandedWeek] = useState(null);
-      const [toast, setToast] = useState("");
+// ── MAIN APP ─────────────────────────────────────────────────────────────────
+function App() {
+  const [tab, setTab] = useState("dashboard");
+  const [auth, setAuth] = useState(null);
+  const [stravaRuns, setStravaRuns] = useState({});
+  const [syncing, setSyncing] = useState(false);
+  const [sessions, setSessions] = useState({});
+  const [closedWeeks, setClosedWeeks] = useState({});
+  const [periods, setPeriods] = useState([]);
+  const [cycleLen, setCycleLen] = useState(28);
+  const [newStart, setNewStart] = useState("");
+  const [newEnd, setNewEnd] = useState("");
+  const [expanded, setExpanded] = useState(null);
+  const [timeOffWeeks, setTimeOffWeeks] = useState([]);
+  const [timeOffModal, setTimeOffModal] = useState(false);
+  const [newTOWeek, setNewTOWeek] = useState("");
+  const [newTOPct, setNewTOPct] = useState(30);
+  const [toast, setToast] = useState("");
 
-      const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(""), 3000); };
+  const showToast = function(m){ setToast(m); setTimeout(function(){ setToast(""); },3000); };
 
-      // All runs = baked-in history + live Strava (live wins on same date)
-      const allRuns = { ...STRAVA_HISTORY, ...stravaRuns };
-      const stravaCount = Object.keys(stravaRuns).length;
-      const historyCount = Object.keys(STRAVA_HISTORY).length;
+  var allRuns = useMemo(function(){ return Object.assign({},STRAVA_HISTORY,stravaRuns); },[stravaRuns]);
+  var raceDate = new Date("2026-08-30");
+  var today = new Date(); today.setHours(0,0,0,0);
+  var daysLeft = Math.ceil((raceDate-today)/86400000);
 
-      // ── On mount: check for auth in URL hash, or load from storage ──────────
-      useEffect(() => {
-        // Check if Strava just redirected back with auth
-        const urlParams = new URLSearchParams(window.location.search);
-        const authParam = urlParams.get("auth");
-        const errorParam = urlParams.get("error");
+  var livePlan = useMemo(function(){ return buildLivePlan(timeOffWeeks,periods,cycleLen); },[timeOffWeeks,periods,cycleLen]);
+  var cycleDay = getDayInCycle(periods,cycleLen);
+  var phaseIdx = getPhaseIdx(cycleDay,cycleLen);
+  var phase = CYCLE_PHASES[phaseIdx];
+  var nextPeriod = cycleLen-cycleDay;
+  var fertile = phaseIdx===2;
+  var ovDay = cycleLen-14;
 
-        if (authParam) {
-          try {
-            const authData = JSON.parse(decodeURIComponent(authParam));
-            saveAuth(authData);
-            setAuth(authData);
-            // Clean URL
-            window.history.replaceState({}, "", "/");
-            showToast(`👋 Connected as ${authData.athlete?.firstname || "Bonnie"}!`);
-            fetchStravaRuns(authData);
-          } catch (e) { console.error("Auth parse error", e); }
-        } else if (errorParam) {
-          showToast("❌ Strava connection failed — try again");
-          window.history.replaceState({}, "", "/");
-        } else {
-          // Load saved auth
-          const saved = loadAuth();
-          if (saved) {
-            setAuth(saved);
-            fetchStravaRuns(saved);
-          }
-        }
+  var allRunVals = Object.values(allRuns);
+  var totalKm = allRunVals.reduce(function(s,r){ return s+(r.km||0); },0);
+  var paces = allRunVals.map(function(r){ return paceToMin(r.pace); }).filter(Boolean);
+  var avgP = paces.length>0?paces.reduce(function(s,p){ return s+p; },0)/paces.length:6.2;
+  var avgPStr = Math.floor(avgP)+":"+(Math.round((avgP%1)*60)).toString().padStart(2,"0");
 
-        // Load other saved state
-        try {
-          const sessions = localStorage.getItem("bonnie_sessions");
-          if (sessions) setCompletedSessions(JSON.parse(sessions));
-          const cycle = localStorage.getItem("bonnie_cycle");
-          if (cycle) setCycleDay(parseInt(cycle));
-          const savedRuns = localStorage.getItem("bonnie_strava_runs");
-          if (savedRuns) setStravaRuns(JSON.parse(savedRuns));
-        } catch {}
-      }, []);
+  var totalPlanned = COMPLETED_WEEKS.reduce(function(s,w){ return s+w.planned; },0);
+  var totalActual = COMPLETED_WEEKS.reduce(function(s,w){ return s+w.actual; },0);
+  var athleteId = auth&&auth.athlete?auth.athlete.id||"bonnie_default":null;
 
-      // ── Fetch runs from Strava via our serverless proxy ───────────────────────
-      const fetchStravaRuns = async (authData) => {
-        setSyncStatus("loading");
-        try {
-          const a = authData || auth;
-          if (!a) throw new Error("Not connected");
+  var assessment = useMemo(function(){ return assessGoal(allRuns,COMPLETED_WEEKS,sessions,livePlan); },[allRuns,sessions,livePlan]);
 
-          // Fetch up to 200 recent activities (2 pages of 100)
-          const params = new URLSearchParams({
-            path: "/api/v3/athlete/activities?per_page=100&page=1",
-            access_token: a.access_token,
-            refresh_token: a.refresh_token,
-            expires_at: a.expires_at,
-          });
-          const res = await fetch(`${API_BASE}/strava-api?${params}`);
-          const json = await res.json();
+  // Find current and next week dynamically
+  var currentWeekIdx = useMemo(function(){
+    var todayStr = today.toISOString().substring(0,10);
+    var idx = livePlan.findIndex(function(w,i){
+      var next = livePlan[i+1];
+      return w.startDate <= todayStr && (!next || next.startDate > todayStr);
+    });
+    return idx >= 0 ? idx : 0;
+  },[livePlan, today]);
+  var currentWeek = livePlan[currentWeekIdx];
 
-          if (json.newTokenData) {
-            const updated = { ...a, ...json.newTokenData };
-            saveAuth(updated);
-            setAuth(updated);
-          }
+  var saveCloud = useCallback(async function(data){
+    if(!athleteId) return;
+    try{ await fetch("/api/data?athlete_id="+athleteId,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)}); }catch(e){}
+  },[athleteId]);
 
-          // Page 2
-          const params2 = new URLSearchParams({
-            path: "/api/v3/athlete/activities?per_page=100&page=2",
-            access_token: json.newTokenData?.access_token || a.access_token,
-            refresh_token: json.newTokenData?.refresh_token || a.refresh_token,
-            expires_at: json.newTokenData?.expires_at || a.expires_at,
-          });
-          const res2 = await fetch(`${API_BASE}/strava-api?${params2}`);
-          const json2 = await res2.json();
-
-          const allActivities = [...(json.data || []), ...(json2.data || [])];
-          const runs = parseStravaActivities(allActivities);
-
-          // Filter to marathon training (Dec 2025+)
-          const filtered = {};
-          Object.entries(runs).forEach(([k, v]) => {
-            if (k >= "2025-12-01") filtered[k] = v;
-          });
-
-          setStravaRuns(filtered);
-          localStorage.setItem("bonnie_strava_runs", JSON.stringify(filtered));
-          setSyncStatus("ok");
-          showToast(`🟠 ${Object.keys(filtered).length} runs synced from Strava!`);
-        } catch (e) {
-          setSyncStatus("error");
-          console.error("Strava sync error:", e);
-          showToast("❌ Sync failed — " + e.message);
-        }
-      };
-
-      const handleConnect = () => {
-        window.location.href = `${API_BASE}/strava-login`;
-      };
-
-      const handleDisconnect = () => {
-        clearAuth();
-        setAuth(null);
-        setStravaRuns({});
-        localStorage.removeItem("bonnie_strava_runs");
-        setSyncStatus("idle");
-        showToast("Disconnected from Strava");
-      };
-
-      const toggleSession = (wk, idx) => {
-        const k = `${wk}_${idx}`;
-        const u = { ...completedSessions, [k]: !completedSessions[k] };
-        setCompletedSessions(u);
-        try { localStorage.setItem("bonnie_sessions", JSON.stringify(u)); } catch {}
-      };
-
-      // ── Stats ─────────────────────────────────────────────────────────────────
-      const raceDate = new Date("2026-08-30");
-      const today = new Date();
-      const daysToRace = Math.ceil((raceDate - today) / 86400000);
-      const progressPct = Math.round((14/40)*100);
-      const totalPlannedKm = PLAN_WEEKS.reduce((s,w)=>s+w.target,0) + COMPLETED_WEEKS.reduce((s,w)=>s+w.planned,0);
-      const histKm = Object.values(STRAVA_HISTORY).reduce((s,r)=>s+r.km,0);
-      const liveKm = Object.values(stravaRuns).reduce((s,r)=>s+r.km,0);
-      const totalKm = +(COMPLETED_WEEKS.reduce((s,w)=>s+w.actual,0) + (liveKm || histKm)).toFixed(1);
-      const kmProgressPct = Math.round((totalKm / totalPlannedKm) * 100);
-      const cyclePhaseIdx = cycleDay<=5?0:cycleDay<=13?1:cycleDay<=17?2:3;
-      const currentPhase = CYCLE_PHASES[cyclePhaseIdx];
-      const currentAvgPace = 6.2;
-      const goalPace = 5 + 41/60;
-
-      // ── Shared styles ─────────────────────────────────────────────────────────
-      const card = { background:P.white, borderRadius:20, padding:"16px", marginBottom:12, border:`1px solid ${P.border}`, boxShadow:"0 4px 20px rgba(67,97,238,0.07)" };
-      const pill = (c) => ({ background:`${c}18`, border:`1.5px solid ${c}40`, borderRadius:20, padding:"3px 10px", fontSize:10, color:c, display:"inline-block", fontWeight:700 });
-      const btnPrimary = (c) => ({ background:`linear-gradient(135deg,${c},${c}CC)`, border:"none", color:"#fff", borderRadius:14, padding:"12px 20px", fontSize:13, cursor:"pointer", fontWeight:800, boxShadow:`0 6px 20px ${c}40`, fontFamily:"inherit" });
-      const sectionTitle = { fontSize:14, fontWeight:800, color:P.textDark, marginBottom:3 };
-      const sectionSub = { fontSize:11, color:P.textSoft, marginBottom:14 };
-
-      const navItems = [
-        { id:"dashboard", icon:"🏠", label:"Home" },
-        { id:"plan",      icon:"📋", label:"Plan" },
-        { id:"strava",    icon:"🟠", label:"Strava" },
-        { id:"cycle",     icon:"🌸", label:"Cycle" },
-        { id:"nutrition", icon:"🥗", label:"Food" },
-      ];
-
-      const fmtPace = (p) => { const m=Math.floor(p), s=Math.round((p-m)*60); return `${m}:${s.toString().padStart(2,"0")}`; };
-
-      return (
-        <div style={{ fontFamily:"'Nunito','Poppins',system-ui,sans-serif", background:P.bg, minHeight:"100vh", color:P.textDark }}>
-          <FloatingParticles/>
-          <style>{`
-            @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap');
-            * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
-            button:active { transform: scale(0.97); }
-            @keyframes popIn { from{transform:scale(0.92);opacity:0} to{transform:scale(1);opacity:1} }
-            .tab-content { animation: popIn 0.2s ease; }
-            .app-shell { display: flex; min-height: 100vh; }
-            .sidebar-nav { display: none; }
-            .bottom-nav { display: flex; }
-            .main-wrap { width:100%; padding: 0 14px 86px; }
-            @media(min-width:768px){
-              .sidebar-nav { display:flex; flex-direction:column; width:200px; min-width:200px; background:${P.white}; border-right:1.5px solid ${P.border}; padding:28px 12px; position:sticky; top:0; height:100vh; box-shadow:2px 0 16px rgba(67,97,238,0.06); }
-              .bottom-nav { display:none !important; }
-              .mobile-header { display:none !important; }
-              .main-wrap { max-width:860px; margin:0 auto; padding:28px 32px 40px; flex:1; }
-              .dash-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
-              .dash-full { grid-column:1/-1; }
+  useEffect(function(){
+    var p=new URLSearchParams(window.location.search);
+    var ap=p.get("auth");
+    if(ap){
+      try{
+        var a=JSON.parse(decodeURIComponent(ap));
+        localStorage.setItem("bonnie_auth",JSON.stringify(a));
+        setAuth(a); window.history.replaceState({},"","/");
+        showToast("Syncing your runs...");
+        doSync(a);
+        if(a.athlete&&a.athlete.id){
+          fetch("/api/data?athlete_id="+a.athlete.id).then(function(r){ return r.json(); }).then(function(j){
+            if(j.data){ if(j.data.periods) setPeriods(j.data.periods); if(j.data.sessions) setSessions(j.data.sessions);
+              if(j.data.closedWeeks) setClosedWeeks(j.data.closedWeeks);
+              if(j.data.cycleLen) setCycleLen(j.data.cycleLen);
+              if(j.data.timeOffWeeks) setTimeOffWeeks(j.data.timeOffWeeks);
             }
-          `}</style>
+          }).catch(function(){});
+        }
+      }catch(e){}
+    } else {
+      try{
+        var sa=localStorage.getItem("bonnie_auth");
+        if(sa){ var a2=JSON.parse(sa); setAuth(a2); doSync(a2);
+          if(a2.athlete&&a2.athlete.id){
+            fetch("/api/data?athlete_id="+a2.athlete.id).then(function(r){ return r.json(); }).then(function(j){
+              if(j.data){ if(j.data.periods) setPeriods(j.data.periods); if(j.data.sessions) setSessions(j.data.sessions);
+                if(j.data.closedWeeks) setClosedWeeks(j.data.closedWeeks);
+                if(j.data.cycleLen) setCycleLen(j.data.cycleLen);
+                if(j.data.timeOffWeeks) setTimeOffWeeks(j.data.timeOffWeeks);
+              }
+            }).catch(function(){});
+          }
+        }
+        var sr=localStorage.getItem("bonnie_strava_runs"); if(sr) setStravaRuns(JSON.parse(sr));
+        var ss=localStorage.getItem("bonnie_sessions"); if(ss) setSessions(JSON.parse(ss));
+        var pp=localStorage.getItem("bonnie_periods"); if(pp) setPeriods(JSON.parse(pp));
+        var cl=localStorage.getItem("bonnie_cycleLen"); if(cl) setCycleLen(parseInt(cl));
+        var to=localStorage.getItem("bonnie_timeoff"); if(to) setTimeOffWeeks(JSON.parse(to));
+        var cw=localStorage.getItem("bonnie_closedWeeks"); if(cw) setClosedWeeks(JSON.parse(cw));
+      }catch(e){}
+    }
+  },[]);
 
-          <div className="app-shell">
-            {/* Sidebar (desktop) */}
-            <div className="sidebar-nav">
-              <div style={{ marginBottom:24, paddingLeft:8 }}>
-                <div style={{ fontSize:17, fontWeight:900 }}>Bonnie's</div>
-                <div style={{ fontSize:17, fontWeight:900, background:`linear-gradient(135deg,${P.electric},${P.violet})`, WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent" }}>Marathon 🏅</div>
-                <div style={{ fontSize:10, color:P.textSoft, marginTop:3 }}>Sydney · 30 Aug 2026</div>
-              </div>
-              {navItems.map(({id,icon,label}) => {
-                const active = tab===id;
-                return (
-                  <button key={id} onClick={()=>setTab(id)} style={{ display:"flex", alignItems:"center", gap:10, width:"100%", padding:"10px 12px", marginBottom:4, background:active?`${P.electric}12`:"transparent", border:"none", borderRadius:14, color:active?P.electric:P.textMid, fontSize:13, cursor:"pointer", fontWeight:active?800:600, fontFamily:"inherit", textAlign:"left" }}>
-                    <div style={{ width:32, height:32, borderRadius:10, background:active?`${P.electric}20`:P.border, display:"flex", alignItems:"center", justifyContent:"center", fontSize:15 }}>{icon}</div>
-                    {label}
-                  </button>
-                );
-              })}
-              <div style={{ marginTop:"auto", background:`linear-gradient(135deg,${P.electric},${P.violet})`, borderRadius:16, padding:"14px", textAlign:"center" }}>
-                <div style={{ fontSize:9, color:"rgba(255,255,255,0.7)", textTransform:"uppercase", letterSpacing:1, marginBottom:2 }}>Days to race</div>
-                <div style={{ fontSize:36, fontWeight:900, color:"#fff", lineHeight:1 }}><Counter to={daysToRace}/></div>
-                <div style={{ fontSize:10, color:"rgba(255,255,255,0.7)", marginTop:2 }}>30 Aug 2026 🏁</div>
-              </div>
+  var doSync = async function(a){
+    setSyncing(true);
+    try{
+      var mkP=function(pg,tok){ return new URLSearchParams({path:"/api/v3/athlete/activities?per_page=100&page="+pg,access_token:tok.access_token,refresh_token:tok.refresh_token,expires_at:tok.expires_at}).toString(); };
+      var r1=await fetch("/api/strava-api?"+mkP(1,a)); var j1=await r1.json();
+      if(j1.newTokenData){ var na=Object.assign({},a,j1.newTokenData); localStorage.setItem("bonnie_auth",JSON.stringify(na)); setAuth(na); a=na; }
+      var r2=await fetch("/api/strava-api?"+mkP(2,a)); var j2=await r2.json();
+      var all=(j1.data||[]).concat(j2.data||[]);
+      var runs=parseStravaActivities(all);
+      var filtered={};
+      Object.keys(runs).forEach(function(k){ if(k>="2025-12-01") filtered[k]=runs[k]; });
+      setStravaRuns(filtered);
+      localStorage.setItem("bonnie_strava_runs",JSON.stringify(filtered));
+      showToast(Object.keys(filtered).length+" runs synced!");
+    }catch(e){ showToast("Sync failed"); }
+    setSyncing(false);
+  };
+
+  var saveAll = function(upd){
+    var merged=Object.assign({periods,sessions,closedWeeks,cycleLen,timeOffWeeks},upd);
+    localStorage.setItem("bonnie_sessions",JSON.stringify(merged.sessions));
+    localStorage.setItem("bonnie_periods",JSON.stringify(merged.periods));
+    localStorage.setItem("bonnie_cycleLen",String(merged.cycleLen));
+    localStorage.setItem("bonnie_timeoff",JSON.stringify(merged.timeOffWeeks));
+    localStorage.setItem("bonnie_closedWeeks",JSON.stringify(merged.closedWeeks));
+    saveCloud(merged);
+  };
+
+  var toggleSession = function(wk,si){
+    var k=wk+"_"+si, u=Object.assign({},sessions); u[k]=!u[k];
+    setSessions(u); saveAll({sessions:u});
+  };
+
+  var closeWeek = function(wkName){
+    var u=Object.assign({},closedWeeks); u[wkName]=true;
+    setClosedWeeks(u); saveAll({closedWeeks:u});
+    showToast("Week closed! Moving to next week.");
+  };
+
+  var savePeriod = function(){
+    if(!newStart){ showToast("Enter a start date"); return; }
+    var updated=periods.filter(function(p){ return p.start!==newStart; });
+    updated.push({ start:newStart, end:newEnd||newStart });
+    updated.sort(function(a,b){ return new Date(a.start)-new Date(b.start); });
+    setPeriods(updated); saveAll({periods:updated});
+    setNewStart(""); setNewEnd(""); showToast("Period logged! Plan updated.");
+  };
+
+  var addTimeOff = function(){
+    if(!newTOWeek){ showToast("Select a week"); return; }
+    var updated=timeOffWeeks.filter(function(t){ return t.week!==newTOWeek; });
+    updated.push({ week:newTOWeek, pct:newTOPct });
+    setTimeOffWeeks(updated); saveAll({timeOffWeeks:updated});
+    setTimeOffModal(false); showToast("Time off added — plan adjusted!");
+  };
+
+  var removeTimeOff = function(wk){
+    var updated=timeOffWeeks.filter(function(t){ return t.week!==wk; });
+    setTimeOffWeeks(updated); saveAll({timeOffWeeks:updated});
+  };
+
+  var card={ background:"#fff",borderRadius:18,padding:"14px",marginBottom:10,border:"1px solid "+P.border,boxShadow:"0 3px 12px rgba(67,97,238,0.06)" };
+  var nav=[["dashboard","🏠","Home"],["plan","📋","Plan"],["strava","🟠","Strava"],["cycle","🌸","Cycle"]];
+
+  return (
+    <div style={{fontFamily:"'Segoe UI',system-ui,sans-serif",background:P.bg,minHeight:"100vh",paddingBottom:86}}>
+
+      {/* Header */}
+      <div style={{background:"linear-gradient(135deg,"+P.electric+","+P.violet+")",padding:"16px 16px 14px",color:"#fff",position:"sticky",top:0,zIndex:50,boxShadow:"0 4px 20px rgba(67,97,238,0.25)"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <div>
+            <div style={{fontSize:19,fontWeight:900}}>Bonnie's Marathon</div>
+            <div style={{fontSize:10,opacity:0.8}}>Sydney 30 Aug 2026 · Sub 4:00 · Goal 5:41/km</div>
+          </div>
+          <div style={{textAlign:"right",background:"rgba(255,255,255,0.15)",borderRadius:14,padding:"6px 12px"}}>
+            <div style={{fontSize:26,fontWeight:900,lineHeight:1}}>{daysLeft}</div>
+            <div style={{fontSize:9,opacity:0.8}}>days to go</div>
+          </div>
+        </div>
+      </div>
+
+      {toast&&<div style={{background:P.teal,color:"#fff",padding:"9px 16px",textAlign:"center",fontSize:12,fontWeight:700}}>{toast}</div>}
+
+      <div style={{padding:"12px 14px"}}>
+
+        {/* ── DASHBOARD ── */}
+        {tab==="dashboard"&&<div className="fade-in">
+
+          {/* Goal assessment banner */}
+          <div style={{...card,border:"2px solid "+assessment.color+"50",background:assessment.color+"08",padding:"14px"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:6}}>
+              <div style={{fontSize:14,fontWeight:900,color:assessment.color}}>{assessment.status}</div>
+              <div style={{fontSize:10,fontWeight:700,color:assessment.weekColor,background:assessment.weekColor+"18",borderRadius:8,padding:"2px 8px"}}>{assessment.weekStatus}</div>
             </div>
+            <div style={{fontSize:11,color:P.textMid,lineHeight:1.6,marginBottom:6}}>{assessment.message}</div>
+            <div style={{fontSize:11,fontWeight:700,color:assessment.color}}>💡 {assessment.tip}</div>
+          </div>
 
-            {/* Main content */}
-            <div className="main-wrap">
-              {/* Mobile header */}
-              <div className="mobile-header" style={{ paddingTop:20, paddingBottom:14, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-                <div>
-                  <div style={{ fontSize:22, fontWeight:900, lineHeight:1.1 }}>Bonnie's<br/>
-                    <span style={{ background:`linear-gradient(135deg,${P.electric},${P.violet})`, WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent" }}>Marathon 🏅</span>
-                  </div>
-                  <div style={{ fontSize:10, color:P.textSoft, marginTop:4 }}>Sydney · 30 Aug 2026 · Sub 4:00 🎯</div>
-                </div>
-                <div style={{ width:48, height:48, borderRadius:16, background:`linear-gradient(135deg,${P.electric},${P.violet})`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:22 }}>🏃‍♀️</div>
-              </div>
-
-              {/* Toast */}
-              {toast && <div style={{ background:`linear-gradient(135deg,${P.teal}20,${P.teal}10)`, border:`1.5px solid ${P.teal}50`, borderRadius:14, padding:"11px 16px", marginBottom:12, textAlign:"center", color:P.teal, fontSize:13, fontWeight:800 }}>{toast}</div>}
-
-              {/* ── DASHBOARD ── */}
-              {tab==="dashboard" && (
-                <div className="tab-content">
-                  <div className="dash-grid">
-                    {/* Countdown hero */}
-                    <div className="dash-full" style={{ background:`linear-gradient(135deg,${P.electric},${P.violet})`, borderRadius:24, padding:"22px 20px", marginBottom:12, position:"relative", overflow:"hidden", boxShadow:`0 10px 40px ${P.electric}35` }}>
-                      <div style={{ fontSize:10, color:"rgba(255,255,255,0.7)", textTransform:"uppercase", letterSpacing:1.5, marginBottom:4 }}>Race day countdown</div>
-                      <div style={{ fontSize:58, fontWeight:900, color:"#fff", lineHeight:1, marginBottom:4 }}><Counter to={daysToRace}/></div>
-                      <div style={{ fontSize:13, color:"rgba(255,255,255,0.8)", marginBottom:16 }}>days to go · Sunday 30 Aug 2026 🏁</div>
-                      <div style={{ height:8, background:"rgba(255,255,255,0.2)", borderRadius:4, overflow:"hidden", marginBottom:6 }}>
-                        <div style={{ height:"100%", width:`${progressPct}%`, background:"rgba(255,255,255,0.85)", borderRadius:4 }}/>
-                      </div>
-                      <div style={{ fontSize:10, color:"rgba(255,255,255,0.7)" }}>Week 14 of 40 · {progressPct}% complete</div>
-                    </div>
-
-                    {/* Stat rings */}
-                    <div style={{ ...card, display:"flex", justifyContent:"space-around", padding:"20px 10px" }}>
-                      <Ring pct={kmProgressPct} size={78} color={P.electric} label={`${totalKm} km`} sub={`of ~${totalPlannedKm}`}/>
-                      <Ring pct={Math.round(((Object.keys(allRuns).length)/180)*100)} size={78} color={P.orange} label={`${Object.keys(allRuns).length} runs`} sub="logged"/>
-                      <Ring pct={progressPct} size={78} color={P.teal} label="14 / 40" sub="weeks"/>
-                    </div>
-
-                    {/* Pace vs goal */}
-                    <div style={card}>
-                      <div style={{ fontSize:10, fontWeight:800, color:P.textSoft, marginBottom:10, textTransform:"uppercase", letterSpacing:1.2 }}>⚡ Pace vs Goal</div>
-                      <div style={{ display:"flex", justifyContent:"space-between", marginBottom:10 }}>
-                        <div><div style={{ fontSize:10, color:P.textSoft }}>Current avg</div><div style={{ fontSize:24, fontWeight:800 }}>{fmtPace(currentAvgPace)}<span style={{ fontSize:11, color:P.textSoft }}>/km</span></div></div>
-                        <div style={{ textAlign:"right" }}><div style={{ fontSize:10, color:P.textSoft }}>Goal</div><div style={{ fontSize:24, fontWeight:800, color:P.electric }}>{fmtPace(goalPace)}<span style={{ fontSize:11, color:P.textSoft }}>/km</span></div></div>
-                      </div>
-                      <div style={{ height:8, background:`${P.electric}15`, borderRadius:4, overflow:"hidden" }}>
-                        <div style={{ height:"100%", width:"60%", background:`linear-gradient(90deg,${P.electric},${P.orange})`, borderRadius:4 }}/>
-                      </div>
-                      <div style={{ fontSize:11, color:P.orange, fontWeight:700, marginTop:6 }}>Keep building! ⚡</div>
-                    </div>
-
-                    {/* Strava sync status card */}
-                    <div style={{ ...card, background:auth?`${P.teal}08`:`${P.orange}08`, border:`1.5px solid ${auth?P.teal:P.orange}30` }}>
-                      <div style={{ fontSize:11, fontWeight:800, color:auth?P.teal:P.orange, marginBottom:6 }}>
-                        {auth ? "🟠 Strava Connected" : "🟠 Connect Strava"}
-                      </div>
-                      <div style={{ fontSize:11, color:P.textMid, marginBottom:10 }}>
-                        {auth
-                          ? `${stravaCount > 0 ? stravaCount + " live runs synced" : "Syncing..."} + ${historyCount} history runs`
-                          : "Tap to connect and auto-sync all your runs"}
-                      </div>
-                      <button onClick={auth ? () => fetchStravaRuns() : handleConnect}
-                        style={{ ...btnPrimary(auth?P.teal:P.orange), padding:"9px 16px", fontSize:12, width:"100%" }}>
-                        {syncStatus==="loading" ? "⏳ Syncing…" : auth ? "🔄 Refresh Runs" : "Connect Strava 🟠"}
-                      </button>
-                    </div>
-
-                    {/* Cycle phase */}
-                    <div className="dash-full" style={{ ...card, display:"flex", justifyContent:"space-between", alignItems:"center", border:`1.5px solid ${currentPhase.color}30`, background:`${currentPhase.color}08` }}>
-                      <div style={{ flex:1 }}>
-                        <div style={{ fontSize:10, color:P.textSoft, marginBottom:3 }}>🌸 Cycle phase · Day {cycleDay}</div>
-                        <div style={{ fontSize:17, fontWeight:900, color:currentPhase.color, marginBottom:4 }}>{currentPhase.phase}</div>
-                        <div style={{ fontSize:11, color:P.textMid, lineHeight:1.5 }}>{currentPhase.training}</div>
-                      </div>
-                      <div style={{ fontSize:36, marginLeft:12 }}>{["🩸","🌷","🌺","🍂"][cyclePhaseIdx]}</div>
-                    </div>
-                  </div>
-                  <div style={{ textAlign:"center", padding:"4px 0 8px", fontSize:12, color:P.textSoft, fontStyle:"italic" }}>
-                    "She believed she could, so she did." ✨
-                  </div>
-                </div>
-              )}
-
-              {/* ── STRAVA TAB ── */}
-              {tab==="strava" && (
-                <div className="tab-content">
-                  <div style={sectionTitle}>🟠 Strava</div>
-                  <div style={sectionSub}>Your runs, automatically synced</div>
-
-                  {/* Connection hero */}
-                  <div style={{ background:`linear-gradient(135deg,#FC4C02,#FF8C00)`, borderRadius:22, padding:"20px", marginBottom:14, boxShadow:"0 10px 30px rgba(252,76,2,0.3)", position:"relative", overflow:"hidden" }}>
-                    <div style={{ position:"absolute", top:-20, right:-20, width:90, height:90, borderRadius:"50%", background:"rgba(255,255,255,0.08)" }}/>
-                    <div style={{ fontSize:10, color:"rgba(255,255,255,0.8)", fontWeight:700, marginBottom:6 }}>STRAVA CONNECTION</div>
-                    <div style={{ fontSize:20, fontWeight:900, color:"#fff", marginBottom:4 }}>
-                      {auth ? `✅ Connected${auth.athlete?.firstname ? " · " + auth.athlete.firstname : ""}` : "🔗 Not connected"}
-                    </div>
-                    <div style={{ fontSize:11, color:"rgba(255,255,255,0.75)", marginBottom:16 }}>
-                      {auth
-                        ? `${stravaCount} live runs synced · ${historyCount} history loaded`
-                        : "Connect once — syncs automatically every time you open the app"}
-                    </div>
-                    <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
-                      {auth ? (
-                        <>
-                          <button onClick={() => fetchStravaRuns()} style={{ background:"rgba(255,255,255,0.25)", border:"1.5px solid rgba(255,255,255,0.4)", borderRadius:12, padding:"10px 18px", color:"#fff", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>
-                            {syncStatus==="loading" ? "⏳ Syncing…" : "🔄 Sync Now"}
-                          </button>
-                          <button onClick={handleDisconnect} style={{ background:"rgba(0,0,0,0.15)", border:"1.5px solid rgba(255,255,255,0.2)", borderRadius:12, padding:"10px 14px", color:"rgba(255,255,255,0.7)", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
-                            Disconnect
-                          </button>
-                        </>
-                      ) : (
-                        <button onClick={handleConnect} style={{ background:"rgba(255,255,255,0.25)", border:"1.5px solid rgba(255,255,255,0.4)", borderRadius:12, padding:"10px 18px", color:"#fff", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>
-                          Connect Strava 🟠
-                        </button>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Stats strip */}
-                  <div style={{ display:"flex", gap:8, marginBottom:14 }}>
-                    {[
-                      [P.orange, `${stravaCount}`, "live from Strava"],
-                      [P.electric, `${historyCount}`, "history loaded"],
-                      [P.teal, `${Object.keys(allRuns).length}`, "total runs"],
-                    ].map(([c,v,l]) => (
-                      <div key={l} style={{ flex:1, background:`${c}12`, border:`1.5px solid ${c}30`, borderRadius:14, padding:"11px 8px", textAlign:"center" }}>
-                        <div style={{ fontSize:16, fontWeight:900, color:c }}>{v}</div>
-                        <div style={{ fontSize:9, color:P.textSoft, marginTop:2 }}>{l}</div>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* All runs list */}
-                  <div style={{ fontSize:13, fontWeight:800, color:P.textDark, marginBottom:8 }}>All runs (newest first)</div>
-                  {Object.entries(allRuns).length === 0 ? (
-                    <div style={{ ...card, textAlign:"center", padding:32, color:P.textSoft, fontSize:13 }}>
-                      <div style={{ fontSize:36, marginBottom:10 }}>🏃‍♀️</div>
-                      Connect Strava above to see your runs!
-                    </div>
-                  ) : (
-                    Object.entries(allRuns)
-                      .sort((a,b) => b[0].localeCompare(a[0]))
-                      .map(([date, run]) => (
-                        <div key={date} style={{ ...card, display:"flex", justifyContent:"space-between", alignItems:"center", padding:"13px 15px" }}>
-                          <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-                            <div style={{ width:42, height:42, borderRadius:14, background:"linear-gradient(135deg,#FC4C02,#FF8C00)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, flexShrink:0 }}>🟠</div>
-                            <div>
-                              <div style={{ fontSize:15, fontWeight:800, color:P.textDark }}>{run.km?.toFixed ? run.km.toFixed(1) : run.km} km</div>
-                              <div style={{ fontSize:10, color:P.textSoft }}>{date.substring(0,10)}{run.pace ? ` · ${run.pace}/km` : ""}{run.elevation && run.elevation!=="0" ? ` · ↑${run.elevation}m` : ""}</div>
-                              {run.notes && <div style={{ fontSize:10, color:"#FC4C02", marginTop:2, fontWeight:700 }}>{run.notes}</div>}
-                            </div>
-                          </div>
-                          {run.duration && <div style={{ fontSize:11, color:P.textSoft, fontWeight:600 }}>{run.duration}</div>}
-                        </div>
-                      ))
-                  )}
-                </div>
-              )}
-
-              {/* ── TRAINING PLAN ── */}
-              {tab==="plan" && (
-                <div className="tab-content">
-                  <div style={sectionTitle}>🗓️ Training Plan</div>
-                  <div style={sectionSub}>Weeks 15–40 · Tap to expand · ⭐ = goal pace 5:41/km</div>
-                  <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:14 }}>
-                    {[[P.coral,"🩸 Period"],[P.orange,"⚠️ Pre-period"],[P.electric,"⭐ Tempo"],[P.yellow,"🏆 Peak"]].map(([c,l])=>(
-                      <span key={l} style={pill(c)}>{l}</span>
-                    ))}
-                  </div>
-                  {PLAN_WEEKS.map((wk) => {
-                    const isExp = expandedWeek===wk.week;
-                    const done = wk.sessions.filter((_,si)=>completedSessions[`${wk.week}_${si}`]).length;
-                    const pct = Math.round((done/wk.sessions.length)*100);
-                    const isPeak = wk.week==="Week 32";
-                    const accentColor = wk.period==="period"?P.coral:wk.period==="pre"?P.orange:isPeak?P.yellow:P.electric;
-                    return (
-                      <div key={wk.week} style={{ background:P.white, border:`1.5px solid ${accentColor}30`, borderRadius:18, marginBottom:8, overflow:"hidden", boxShadow:"0 2px 12px rgba(67,97,238,0.06)" }}>
-                        <div style={{ height:3, background:`linear-gradient(90deg,${accentColor},${accentColor}60)` }}/>
-                        <div onClick={()=>setExpandedWeek(isExp?null:wk.week)} style={{ padding:"12px 14px", cursor:"pointer", display:"flex", alignItems:"center", gap:10 }}>
-                          <div style={{ flex:1 }}>
-                            <div style={{ display:"flex", alignItems:"center", gap:7, flexWrap:"wrap", marginBottom:3 }}>
-                              <span style={{ fontSize:14, fontWeight:800 }}>{wk.week}</span>
-                              {wk.period==="period"&&<span style={pill(P.coral)}>🩸 Period</span>}
-                              {wk.period==="pre"&&<span style={pill(P.orange)}>⚠️ Pre</span>}
-                              {isPeak&&<span style={pill(P.yellow)}>🏆 PEAK</span>}
-                            </div>
-                            <div style={{ fontSize:10, color:P.textSoft }}>{wk.dates} · {wk.target} km target</div>
-                          </div>
-                          <div style={{ textAlign:"right" }}>
-                            <div style={{ fontSize:12, fontWeight:800, color:accentColor }}>{done}/{wk.sessions.length}</div>
-                            <div style={{ width:40, height:4, background:`${accentColor}20`, borderRadius:2, marginTop:4 }}>
-                              <div style={{ width:`${pct}%`, height:"100%", background:accentColor, borderRadius:2 }}/>
-                            </div>
-                          </div>
-                          <div style={{ fontSize:16, color:P.textSoft, marginLeft:4 }}>{isExp?"▲":"▼"}</div>
-                        </div>
-                        {isExp && (
-                          <div style={{ padding:"0 14px 14px" }}>
-                            {wk.sessions.map((s,si) => {
-                              const done = completedSessions[`${wk.week}_${si}`];
-                              const isTempo = s.includes("⭐");
-                              const c = isTempo?P.electric:P.teal;
-                              return (
-                                <div key={si} onClick={()=>toggleSession(wk.week,si)}
-                                  style={{ display:"flex", alignItems:"center", gap:10, padding:"9px 0", borderBottom:`1px solid ${P.border}`, cursor:"pointer" }}>
-                                  <div style={{ width:24, height:24, borderRadius:"50%", border:`2px solid ${done?c:P.borderMid}`, background:done?c:"transparent", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, transition:"all 0.15s" }}>
-                                    {done && <span style={{ color:"#fff", fontSize:12, fontWeight:900 }}>✓</span>}
-                                  </div>
-                                  <span style={{ fontSize:12, color:done?P.textSoft:P.textDark, textDecoration:done?"line-through":"none", fontWeight:done?400:600 }}>{s}</span>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-
-              {/* ── CYCLE ── */}
-              {tab==="cycle" && (
-                <div className="tab-content">
-                  <div style={sectionTitle}>🌸 Cycle Tracker</div>
-                  <div style={sectionSub}>Train smarter with your cycle</div>
-                  <div style={{ background:`linear-gradient(135deg,${currentPhase.color},${currentPhase.color}AA)`, borderRadius:22, padding:"20px 18px", marginBottom:12, boxShadow:`0 10px 30px ${currentPhase.color}35` }}>
-                    <div style={{ fontSize:10, color:"rgba(255,255,255,0.7)", marginBottom:4 }}>Currently in · Day {cycleDay}</div>
-                    <div style={{ fontSize:22, fontWeight:900, color:"#fff", marginBottom:6 }}>{currentPhase.phase}</div>
-                    <div style={{ fontSize:11, color:"rgba(255,255,255,0.85)", lineHeight:1.55 }}>{currentPhase.training}</div>
-                  </div>
-                  <div style={card}>
-                    <div style={{ fontSize:12, fontWeight:800, color:P.textDark, marginBottom:10 }}>Cycle day {cycleDay} of 28</div>
-                    <input type="range" min={1} max={28} value={cycleDay} onChange={e=>{const v=parseInt(e.target.value);setCycleDay(v);try{localStorage.setItem("bonnie_cycle",v);}catch{}}} style={{ width:"100%", marginBottom:10 }}/>
-                    <div style={{ display:"flex", gap:4 }}>
-                      {CYCLE_PHASES.map((ph,i) => (
-                        <div key={i} style={{ flex:[5,8,4,11][i], height:8, background:ph.color, borderRadius:4, opacity:cyclePhaseIdx===i?1:0.3 }}/>
-                      ))}
-                    </div>
-                    <div style={{ display:"flex", justifyContent:"space-between", fontSize:9, color:P.textSoft, marginTop:4 }}>
-                      {CYCLE_PHASES.map(ph=><span key={ph.phase}>{ph.days}</span>)}
-                    </div>
-                  </div>
-                  {CYCLE_PHASES.map((ph,i) => (
-                    <div key={i} style={{ ...card, border:`1.5px solid ${ph.color}30`, background:i===cyclePhaseIdx?`${ph.color}08`:P.white }}>
-                      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:6 }}>
-                        <div style={{ fontSize:13, fontWeight:800, color:ph.color }}>{ph.phase}</div>
-                        <span style={{ fontSize:9, color:P.textSoft }}>{ph.days}</span>
-                      </div>
-                      <div style={{ fontSize:11, color:P.textMid, lineHeight:1.6, marginBottom:6 }}><strong>Training:</strong> {ph.training}</div>
-                      <div style={{ fontSize:11, color:P.textMid, lineHeight:1.6 }}><strong>Nutrition:</strong> {ph.nutrition}</div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* ── NUTRITION ── */}
-              {tab==="nutrition" && (
-                <div className="tab-content">
-                  <div style={sectionTitle}>🥗 Race Day Nutrition</div>
-                  <div style={sectionSub}>Sydney Marathon · 30 Aug 2026</div>
-                  <div style={{ background:`linear-gradient(135deg,${P.orange},${P.yellow})`, borderRadius:22, padding:"20px", marginBottom:14, boxShadow:`0 10px 30px ${P.orange}30` }}>
-                    <div style={{ fontSize:11, color:"rgba(255,255,255,0.8)", marginBottom:4 }}>🏁 Race Day Plan</div>
-                    <div style={{ fontSize:20, fontWeight:900, color:"#fff", marginBottom:4 }}>42.195 km · Sub 4:00</div>
-                    <div style={{ fontSize:12, color:"rgba(255,255,255,0.85)", lineHeight:1.6 }}>
-                      Gel every 45 min from km 10 · Electrolytes every aid station · Nothing new on race day!
-                    </div>
-                  </div>
-                  {[
-                    { c:P.teal,    e:"🍳", t:"Pre-run (easy)",     d:"Small snack or nothing. Banana or toast if >10km. Avoid heavy food 30min before." },
-                    { c:P.electric,e:"🔥", t:"Pre-run (tempo ⭐)",  d:"Oats or rice 2hrs before. Banana 30 min before. Gel on run if >45 min." },
-                    { c:P.violet,  e:"🍌", t:"Pre-run (long run)",  d:"Carb load the night before. Oats morning of. 1 gel per 45 min + electrolytes." },
-                    { c:P.orange,  e:"🥛", t:"Post-run recovery",   d:"Protein + carbs within 30 min. Chocolate milk is perfect! Stretch + hydrate 💧" },
-                    { c:P.coral,   e:"💊", t:"Supplements",         d:"Iron (especially period weeks!), magnesium, Vitamin D, omega-3. Ask your doctor 🩺" },
-                    { c:P.yellow,  e:"🛁", t:"Recovery rituals",    d:"Epsom salt baths after long runs. Foam roll. 8hrs sleep. Cold shower after tempo." },
-                  ].map((item,i) => (
-                    <div key={i} style={{ ...card, display:"flex", gap:13, alignItems:"flex-start" }}>
-                      <div style={{ width:44, height:44, borderRadius:16, background:`${item.c}18`, border:`1.5px solid ${item.c}35`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:22, flexShrink:0 }}>{item.e}</div>
-                      <div>
-                        <div style={{ fontSize:12, fontWeight:800, color:P.textDark, marginBottom:3 }}>{item.t}</div>
-                        <div style={{ fontSize:11, color:P.textMid, lineHeight:1.6 }}>{item.d}</div>
-                      </div>
-                    </div>
-                  ))}
-                  <div style={{ textAlign:"center", fontSize:12, color:P.textSoft, fontStyle:"italic", paddingBottom:6 }}>
-                    You're running 42.2km. You deserve to eat! 🍝✨
-                  </div>
-                </div>
-              )}
-            </div>{/* end main-wrap */}
-          </div>{/* end app-shell */}
-
-          {/* Bottom nav (mobile) */}
-          <div className="bottom-nav" style={{ background:P.white, borderTop:`1.5px solid ${P.border}`, position:"fixed", bottom:0, left:0, right:0, zIndex:100, boxShadow:"0 -4px 20px rgba(67,97,238,0.08)" }}>
-            {navItems.map(({id,icon,label}) => {
-              const active = tab===id;
-              return (
-                <button key={id} onClick={()=>setTab(id)} style={{ flex:1, padding:"10px 2px 8px", background:"transparent", border:"none", color:active?P.electric:P.textSoft, fontSize:9, cursor:"pointer", display:"flex", flexDirection:"column", alignItems:"center", gap:2, fontWeight:active?800:500, fontFamily:"inherit", position:"relative" }}>
-                  {active && <div style={{ position:"absolute", top:0, left:"50%", transform:"translateX(-50%)", width:28, height:3, borderRadius:"0 0 4px 4px", background:P.electric }}/>}
-                  <div style={{ width:36, height:36, borderRadius:12, background:active?`${P.electric}15`:"transparent", display:"flex", alignItems:"center", justifyContent:"center", fontSize:active?20:18 }}>{icon}</div>
-                  <span>{label}</span>
-                </button>
-              );
+          {/* Stats strip */}
+          <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6,marginBottom:10}}>
+            {[[P.electric,Object.keys(allRuns).length,"runs"],[P.teal,Math.round(totalKm)+"km","all time"],[P.orange,avgPStr,"avg pace"],[P.violet,"5:41","goal"]].map(function(x){
+              return <div key={x[2]} style={{background:"#fff",borderRadius:12,padding:"10px 4px",textAlign:"center",border:"1px solid "+P.border}}>
+                <div style={{fontSize:15,fontWeight:900,color:x[0]}}>{x[1]}</div>
+                <div style={{fontSize:9,color:P.textSoft,marginTop:1}}>{x[2]}</div>
+              </div>;
             })}
           </div>
-        </div>
-      );
-    }
 
-    const root = ReactDOM.createRoot(document.getElementById("root"));
-    root.render(React.createElement(App));
-  </script>
+          {/* Pace card */}
+          <div style={{...card,border:"1.5px solid "+P.electric+"30"}}>
+            <div style={{fontSize:10,fontWeight:800,color:P.textSoft,textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>Pace vs Goal (Sub 4:00 = 5:41/km)</div>
+            <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}>
+              <div><div style={{fontSize:9,color:P.textSoft}}>Your avg</div><div style={{fontSize:22,fontWeight:900,color:P.orange}}>{avgPStr}<span style={{fontSize:10,color:P.textSoft}}>/km</span></div></div>
+              <div style={{textAlign:"right"}}><div style={{fontSize:9,color:P.textSoft}}>Goal</div><div style={{fontSize:22,fontWeight:900,color:P.teal}}>5:41<span style={{fontSize:10,color:P.textSoft}}>/km</span></div></div>
+            </div>
+            <div style={{height:8,background:P.border,borderRadius:4,overflow:"hidden",marginBottom:6}}>
+              <div style={{height:"100%",width:"60%",background:"linear-gradient(90deg,"+P.electric+","+P.orange+")",borderRadius:4}}/>
+            </div>
+            <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+              <div style={{fontSize:10,background:P.electric+"10",borderRadius:8,padding:"3px 8px",color:P.electric,fontWeight:600}}>Easy: 6:30–7:00/km</div>
+              <div style={{fontSize:10,background:P.orange+"10",borderRadius:8,padding:"3px 8px",color:P.orange,fontWeight:600}}>Tempo: 5:50–6:10/km</div>
+              <div style={{fontSize:10,background:P.teal+"10",borderRadius:8,padding:"3px 8px",color:P.teal,fontWeight:600}}>Long: 6:20–6:50/km</div>
+            </div>
+          </div>
+
+          {/* Progress chart */}
+          <div style={card}>
+            <div style={{fontSize:10,fontWeight:800,color:P.textSoft,textTransform:"uppercase",letterSpacing:1,marginBottom:6}}>Km Progress · Weeks 1–14 + This Week</div>
+            <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}>
+              <div>
+                <div style={{fontSize:9,color:P.textSoft}}>Historical actual</div>
+                <div style={{fontSize:18,fontWeight:900,color:P.teal}}>{totalActual.toFixed(1)}km</div>
+                <div style={{fontSize:9,color:P.textSoft}}>vs {totalPlanned}km planned</div>
+              </div>
+              <div style={{textAlign:"right"}}>
+                <div style={{fontSize:9,color:P.textSoft}}>All time total</div>
+                <div style={{fontSize:18,fontWeight:900,color:P.electric}}>{Math.round(totalKm)}km</div>
+                <div style={{fontSize:9,color:P.textSoft}}>inc Strava runs</div>
+              </div>
+            </div>
+            <div style={{height:6,background:P.border,borderRadius:3,overflow:"hidden",marginBottom:8}}>
+              <div style={{height:"100%",width:Math.min(100,totalActual/totalPlanned*100).toFixed(0)+"%",background:"linear-gradient(90deg,"+P.teal+","+P.electric+")",borderRadius:3}}/>
+            </div>
+            <BarChart pastData={COMPLETED_WEEKS} liveWeek={currentWeek} sessions={sessions}/>
+            <div style={{display:"flex",gap:10,marginTop:6}}>
+              <div style={{display:"flex",alignItems:"center",gap:4,fontSize:9,color:P.textSoft}}><div style={{width:8,height:8,background:P.electric+"40",borderRadius:2}}/>Planned</div>
+              <div style={{display:"flex",alignItems:"center",gap:4,fontSize:9,color:P.textSoft}}><div style={{width:8,height:8,background:P.teal,borderRadius:2}}/>Actual</div>
+              <div style={{display:"flex",alignItems:"center",gap:4,fontSize:9,color:P.textSoft}}><div style={{width:8,height:8,border:"1px dashed "+P.electric,borderRadius:2}}/>Current</div>
+            </div>
+          </div>
+
+          {/* This week checklist */}
+          {currentWeek&&(
+            <div style={{...card,border:"1.5px solid "+P.electric+"30"}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+                <div style={{fontSize:10,fontWeight:800,color:P.textSoft,textTransform:"uppercase",letterSpacing:1}}>This Week · {currentWeek.week}</div>
+                <div style={{fontSize:11,color:P.electric,fontWeight:700}}>{assessment.weekDone}/{assessment.weekTotal} done</div>
+              </div>
+              <div style={{height:5,background:P.border,borderRadius:3,overflow:"hidden",marginBottom:10}}>
+                <div style={{height:"100%",width:(assessment.weekTotal>0?assessment.weekDone/assessment.weekTotal*100:0)+"%",background:"linear-gradient(90deg,"+P.electric+","+P.teal+")",borderRadius:3,transition:"width 0.4s"}}/>
+              </div>
+              {currentWeek.sessions.map(function(s,i){
+                return <SessionItem key={i} session={s} done={!!sessions[currentWeek.week+"_"+i]} onToggle={function(){ toggleSession(currentWeek.week,i); }} showPace={true}/>;
+              })}
+              {assessment.weekDone===assessment.weekTotal&&assessment.weekTotal>0&&(
+                <button onClick={function(){ closeWeek(currentWeek.week); }}
+                  style={{marginTop:10,width:"100%",background:"linear-gradient(90deg,"+P.teal+","+P.electric+")",border:"none",color:"#fff",borderRadius:12,padding:"10px",fontSize:12,fontWeight:800,cursor:"pointer"}}>
+                  Close Week & Move to Next ✓
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Upcoming weeks */}
+          <div style={card}>
+            <div style={{fontSize:10,fontWeight:800,color:P.textSoft,textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>Upcoming Weeks</div>
+            {livePlan.slice(currentWeekIdx+1,currentWeekIdx+4).map(function(wk){
+              return <div key={wk.week} style={{padding:"8px 0",borderBottom:"1px solid "+P.border}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                  <div>
+                    <div style={{fontWeight:700,fontSize:12}}>{wk.week} <span style={{fontWeight:400,color:P.textSoft,fontSize:11}}>{wk.startDate}</span></div>
+                    <div style={{fontSize:10,color:P.textSoft}}>{wk.adjustedTarget}km target{wk.note?" · "+wk.note:""}</div>
+                  </div>
+                  {wk.phase&&<div style={{fontSize:10,fontWeight:700,color:wk.phase.color,background:wk.phase.color+"18",padding:"2px 8px",borderRadius:8}}>{wk.phase.emoji}</div>}
+                </div>
+              </div>;
+            })}
+          </div>
+
+          {/* Cycle strip */}
+          <div style={{...card,border:"1.5px solid "+phase.color+"40",background:phase.color+"06"}}>
+            <div style={{fontSize:10,color:P.textSoft,marginBottom:2}}>Today · Day {cycleDay} of {cycleLen}</div>
+            <div style={{fontSize:15,fontWeight:900,color:phase.color,marginBottom:4}}>{phase.emoji} {phase.phase}</div>
+            <div style={{fontSize:11,color:P.textMid,marginBottom:6}}>{phase.training}</div>
+            <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+              {nextPeriod>0&&<div style={{fontSize:10,background:P.coral+"15",color:P.coral,borderRadius:8,padding:"3px 8px",fontWeight:700}}>Period in ~{nextPeriod} days</div>}
+              {fertile&&<div style={{fontSize:10,background:P.orange+"15",color:P.orange,borderRadius:8,padding:"3px 8px",fontWeight:700}}>Fertile window now</div>}
+              {!fertile&&cycleDay<ovDay&&<div style={{fontSize:10,background:P.teal+"15",color:P.teal,borderRadius:8,padding:"3px 8px",fontWeight:700}}>Ovulation ~{ovDay-cycleDay} days</div>}
+            </div>
+          </div>
+
+          {!auth&&<div style={{...card,border:"1.5px solid #FC4C0240",background:"#FC4C0208"}}>
+            <div style={{fontWeight:800,color:"#FC4C02",marginBottom:6,fontSize:13}}>Connect Strava to sync runs automatically</div>
+            <button onClick={function(){ window.location.href="/api/strava-login"; }}
+              style={{background:"#FC4C02",border:"none",color:"#fff",borderRadius:12,padding:"10px",fontSize:12,fontWeight:800,cursor:"pointer",width:"100%"}}>
+              Connect Strava
+            </button>
+          </div>}
+        </div>}
+
+        {/* ── PLAN TAB ── */}
+        {tab==="plan"&&<div className="fade-in">
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+            <div>
+              <div style={{fontWeight:900,fontSize:18}}>Training Plan</div>
+              <div style={{fontSize:11,color:P.textSoft}}>Goal 5:41/km · Tap pace badge for details</div>
+            </div>
+            <button onClick={function(){ setTimeOffModal(true); }}
+              style={{background:P.violet,border:"none",color:"#fff",borderRadius:12,padding:"8px 12px",fontSize:11,fontWeight:800,cursor:"pointer"}}>
+              + Time Off
+            </button>
+          </div>
+
+          {timeOffWeeks.length>0&&(
+            <div style={{...card,background:P.violet+"08",border:"1px solid "+P.violet+"30"}}>
+              <div style={{fontSize:11,fontWeight:800,color:P.violet,marginBottom:6}}>Time off scheduled</div>
+              {timeOffWeeks.map(function(t){
+                return <div key={t.week} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"4px 0",fontSize:11}}>
+                  <span style={{color:P.textMid}}>{t.week} — {t.pct}% capacity</span>
+                  <button onClick={function(){ removeTimeOff(t.week); }} style={{background:"none",border:"none",color:P.textSoft,cursor:"pointer",fontSize:16}}>✕</button>
+                </div>;
+              })}
+            </div>
+          )}
+
+          {periods.length>0&&<div style={{fontSize:11,color:P.violet,fontWeight:700,marginBottom:8}}>Cycle-synced · plan adapts to your {cycleLen}-day cycle</div>}
+
+          {livePlan.map(function(wk,wkIdx){
+            if(closedWeeks[wk.week]&&wkIdx<currentWeekIdx) return null;
+            var isExp=expanded===wk.week;
+            var done=wk.sessions.filter(function(_,si){ return sessions[wk.week+"_"+si]; }).length;
+            var isCurrent=wk.week===currentWeek.week;
+            var accent=wk.phase?wk.phase.color:isCurrent?P.electric:P.textMid;
+            var isPeak=wk.week==="Week 32";
+            return <div key={wk.week} style={{background:"#fff",borderRadius:16,marginBottom:8,border:"1.5px solid "+(isCurrent?P.electric+"50":wk.isTimeOff?P.violet+"30":P.border),overflow:"hidden",opacity:closedWeeks[wk.week]?0.5:1}}>
+              <div style={{height:3,background:"linear-gradient(90deg,"+accent+","+accent+"55)"}}/>
+              <div onClick={function(){ setExpanded(isExp?null:wk.week); }} style={{padding:"11px 13px",cursor:"pointer",display:"flex",alignItems:"center",gap:8}}>
+                <div style={{flex:1}}>
+                  <div style={{display:"flex",alignItems:"center",gap:5,flexWrap:"wrap",marginBottom:2}}>
+                    <span style={{fontWeight:800,fontSize:13}}>{wk.week}</span>
+                    {isCurrent&&<span style={{fontSize:9,background:P.electric+"20",color:P.electric,borderRadius:6,padding:"1px 6px",fontWeight:800}}>NOW</span>}
+                    {isPeak&&<span style={{fontSize:9,background:P.yellow+"40",color:"#996600",borderRadius:6,padding:"1px 6px",fontWeight:700}}>PEAK</span>}
+                    {wk.isTimeOff&&<span style={{fontSize:9,background:P.violet+"20",color:P.violet,borderRadius:6,padding:"1px 6px",fontWeight:700}}>Holiday</span>}
+                    {wk.phase&&<span style={{fontSize:9,background:wk.phase.color+"20",color:wk.phase.color,borderRadius:6,padding:"1px 6px",fontWeight:700}}>{wk.phase.emoji}</span>}
+                  </div>
+                  <div style={{fontSize:10,color:P.textSoft}}>{wk.startDate} · {wk.adjustedTarget}km{wk.adjustedTarget!==wk.target?" (was "+wk.target+"km)":""} · {done}/{wk.sessions.length} done</div>
+                  {wk.note&&<div style={{fontSize:10,color:accent,fontWeight:700}}>{wk.note}</div>}
+                </div>
+                <div style={{minWidth:32,textAlign:"right"}}>
+                  <div style={{fontSize:11,fontWeight:800,color:accent}}>{done}/{wk.sessions.length}</div>
+                  <div style={{width:32,height:4,background:accent+"20",borderRadius:2,marginTop:3}}>
+                    <div style={{width:(done/wk.sessions.length*100)+"%",height:"100%",background:accent,borderRadius:2}}/>
+                  </div>
+                </div>
+                <div style={{fontSize:12,color:P.textSoft}}>{isExp?"▲":"▼"}</div>
+              </div>
+              {isExp&&<div style={{padding:"0 13px 12px",borderTop:"1px solid "+P.border}}>
+                {wk.phase&&<div style={{background:wk.phase.color+"12",borderRadius:10,padding:"7px 10px",marginBottom:8,fontSize:11,color:wk.phase.color,fontWeight:700}}>
+                  {wk.phase.emoji} {wk.phase.phase} · {wk.phase.training}
+                </div>}
+                {/* Pace guide for this week */}
+                <div style={{background:P.electric+"08",borderRadius:10,padding:"7px 10px",marginBottom:8,fontSize:10}}>
+                  <div style={{fontWeight:800,color:P.electric,marginBottom:4}}>Target paces this week</div>
+                  <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                    {[["🐣 Easy","6:30–7:00",P.teal],["🔥 Tempo","5:50–6:10",P.orange],["🌟 Long","6:20–6:50",P.electric],["🏁 Race","5:38–5:44",P.violet]].map(function(x){
+                      return <div key={x[0]} style={{fontSize:9,fontWeight:700,color:x[2]}}>{x[0]}: <strong>{x[1]}</strong>/km</div>;
+                    })}
+                  </div>
+                </div>
+                {wk.sessions.map(function(s,si){
+                  return <SessionItem key={si} session={s} done={!!sessions[wk.week+"_"+si]} onToggle={function(){ toggleSession(wk.week,si); }} showPace={true}/>;
+                })}
+                {isCurrent&&done===wk.sessions.length&&(
+                  <button onClick={function(){ closeWeek(wk.week); }}
+                    style={{marginTop:10,width:"100%",background:"linear-gradient(90deg,"+P.teal+","+P.electric+")",border:"none",color:"#fff",borderRadius:12,padding:"10px",fontSize:12,fontWeight:800,cursor:"pointer"}}>
+                    Close Week & Move to Next ✓
+                  </button>
+                )}
+              </div>}
+            </div>;
+          })}
+        </div>}
+
+        {/* ── STRAVA TAB ── */}
+        {tab==="strava"&&<div className="fade-in">
+          <div style={{fontWeight:900,fontSize:18,marginBottom:4}}>Strava</div>
+          <div style={{fontSize:11,color:P.textSoft,marginBottom:12}}>Your runs synced automatically</div>
+          <div style={{background:"linear-gradient(135deg,#FC4C02,#FF8C00)",borderRadius:20,padding:"18px",marginBottom:12,color:"#fff"}}>
+            <div style={{fontSize:16,fontWeight:900,marginBottom:4}}>{auth?"Connected":"Not connected"}</div>
+            <div style={{fontSize:11,opacity:0.85,marginBottom:12}}>{auth?Object.keys(stravaRuns).length+" live + "+Object.keys(STRAVA_HISTORY).length+" history":"Connect once, syncs every time"}</div>
+            <div style={{display:"flex",gap:8}}>
+              <button onClick={function(){ auth?doSync(auth):window.location.href="/api/strava-login"; }}
+                style={{background:"rgba(255,255,255,0.25)",border:"1.5px solid rgba(255,255,255,0.5)",borderRadius:12,padding:"9px 16px",color:"#fff",fontSize:12,fontWeight:800,cursor:"pointer"}}>
+                {syncing?"Syncing...":auth?"Sync Now":"Connect Strava"}
+              </button>
+              {auth&&<button onClick={function(){ localStorage.removeItem("bonnie_auth");localStorage.removeItem("bonnie_strava_runs");setAuth(null);setStravaRuns({}); }}
+                style={{background:"rgba(0,0,0,0.15)",border:"1.5px solid rgba(255,255,255,0.2)",borderRadius:12,padding:"9px 12px",color:"rgba(255,255,255,0.7)",fontSize:11,cursor:"pointer"}}>
+                Disconnect
+              </button>}
+            </div>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,marginBottom:10}}>
+            {[[P.teal,Object.keys(allRuns).length,"runs"],[P.electric,Math.round(totalKm)+"km","total"],[P.orange,avgPStr,"avg pace"]].map(function(x){
+              return <div key={x[2]} style={{background:"#fff",borderRadius:12,padding:"10px 6px",textAlign:"center",border:"1px solid "+P.border}}>
+                <div style={{fontSize:16,fontWeight:900,color:x[0]}}>{x[1]}</div>
+                <div style={{fontSize:9,color:P.textSoft}}>{x[2]}</div>
+              </div>;
+            })}
+          </div>
+          {Object.entries(allRuns).sort(function(a,b){ return b[0].localeCompare(a[0]); }).map(function(entry){
+            var date=entry[0],run=entry[1];
+            var pMin=paceToMin(run.pace); var goalPMin=5.683;
+            var onTrack=pMin&&pMin<=goalPMin+0.5;
+            return <div key={date} style={{...card,display:"flex",alignItems:"center",gap:12,padding:"11px 13px"}}>
+              <div style={{width:38,height:38,borderRadius:11,background:"linear-gradient(135deg,#FC4C02,#FF8C00)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>🟠</div>
+              <div style={{flex:1}}>
+                <div style={{fontWeight:800,fontSize:14}}>{(run.km||0).toFixed(1)}km</div>
+                <div style={{fontSize:10,color:P.textSoft}}>{date.substring(0,10)}{run.pace?" · "+run.pace+"/km":""}</div>
+                {run.notes&&<div style={{fontSize:10,color:"#FC4C02",fontWeight:700,marginTop:1}}>{run.notes}</div>}
+              </div>
+              <div style={{textAlign:"right"}}>
+                {run.duration&&<div style={{fontSize:11,color:P.textSoft}}>{run.duration}</div>}
+                {run.pace&&<div style={{fontSize:9,fontWeight:700,color:onTrack?P.teal:P.orange}}>{onTrack?"On pace":"Build pace"}</div>}
+              </div>
+            </div>;
+          })}
+        </div>}
+
+        {/* ── CYCLE TAB ── */}
+        {tab==="cycle"&&<div className="fade-in">
+          <div style={{fontWeight:900,fontSize:18,marginBottom:2}}>Cycle Tracker</div>
+          <div style={{fontSize:11,color:P.textSoft,marginBottom:10}}>Your body, your training</div>
+
+          {/* Cycle length setting */}
+          <div style={{...card,border:"1px solid "+P.violet+"30"}}>
+            <div style={{fontSize:12,fontWeight:800,marginBottom:8}}>Cycle length</div>
+            <div style={{display:"flex",alignItems:"center",gap:10}}>
+              <input type="number" min="21" max="40" value={cycleLen}
+                onChange={function(e){ var v=parseInt(e.target.value)||28; setCycleLen(v); saveAll({cycleLen:v}); }}
+                style={{width:70,padding:"8px 10px",borderRadius:10,border:"1.5px solid "+P.border,fontSize:16,fontWeight:800,textAlign:"center"}}/>
+              <div style={{fontSize:11,color:P.textMid}}>days<br/><span style={{color:P.textSoft}}>Your cycle is {cycleLen} days · next period in ~{nextPeriod} days</span></div>
+            </div>
+            <div style={{fontSize:10,color:P.textSoft,marginTop:6}}>Update anytime — your marathon plan adjusts automatically</div>
+          </div>
+
+          {/* Phase hero */}
+          <div style={{background:"linear-gradient(135deg,"+phase.color+","+phase.color+"BB)",borderRadius:22,padding:"18px",marginBottom:12,color:"#fff"}}>
+            <div style={{fontSize:10,opacity:0.8,marginBottom:4}}>Today · Day {cycleDay} of {cycleLen}</div>
+            <div style={{fontSize:22,fontWeight:900,marginBottom:4}}>{phase.emoji} {phase.phase}</div>
+            <div style={{fontSize:11,opacity:0.9,lineHeight:1.6,marginBottom:10}}>{phase.training}</div>
+            <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+              <div style={{background:"rgba(255,255,255,0.2)",borderRadius:10,padding:"3px 9px",fontSize:10,fontWeight:700}}>Period in ~{nextPeriod} days</div>
+              {!fertile&&cycleDay<ovDay&&<div style={{background:"rgba(255,255,255,0.2)",borderRadius:10,padding:"3px 9px",fontSize:10,fontWeight:700}}>Ovulation ~{ovDay-cycleDay} days</div>}
+              {fertile&&<div style={{background:"rgba(255,255,255,0.3)",borderRadius:10,padding:"3px 9px",fontSize:10,fontWeight:700}}>Fertile window now!</div>}
+            </div>
+          </div>
+
+          {/* Cycle strip */}
+          <div style={card}>
+            <div style={{fontSize:11,fontWeight:800,marginBottom:8}}>Your cycle · Day {cycleDay} of {cycleLen}</div>
+            <div style={{display:"flex",gap:1,marginBottom:6}}>
+              {Array.from({length:cycleLen},function(_,i){
+                var d=i+1, ph=CYCLE_PHASES[getPhaseIdx(d,cycleLen)], isTd=d===cycleDay;
+                return <div key={d} style={{flex:1,height:isTd?20:12,background:ph.color+(isTd?"":"55"),borderRadius:2,position:"relative",minWidth:0}}>
+                  {isTd&&<div style={{position:"absolute",bottom:"100%",left:"50%",transform:"translateX(-50%)",fontSize:8,color:ph.color}}>▼</div>}
+                </div>;
+              })}
+            </div>
+            <div style={{display:"flex",gap:8,fontSize:9,color:P.textSoft,flexWrap:"wrap"}}>
+              {CYCLE_PHASES.map(function(ph){ return <span key={ph.phase} style={{color:ph.color,fontWeight:700}}>{ph.emoji} {ph.phase}</span>; })}
+            </div>
+          </div>
+
+          {/* Info grid */}
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10}}>
+            {[{icon:"💧",title:"Discharge",body:phase.discharge,color:phase.color},{icon:"🌡️",title:"Fertility",body:phase.fertility,color:fertile?P.orange:P.teal},{icon:"🧠",title:"Mood",body:phase.mood,color:P.violet},{icon:"🥗",title:"Nutrition",body:phase.nutrition,color:P.teal}].map(function(item){
+              return <div key={item.title} style={{background:"#fff",borderRadius:14,padding:"11px 10px",border:"1px solid "+P.border}}>
+                <div style={{fontSize:18,marginBottom:3}}>{item.icon}</div>
+                <div style={{fontSize:11,fontWeight:800,color:item.color,marginBottom:3}}>{item.title}</div>
+                <div style={{fontSize:10,color:P.textMid,lineHeight:1.5}}>{item.body}</div>
+              </div>;
+            })}
+          </div>
+
+          {/* Symptoms */}
+          <div style={card}>
+            <div style={{fontSize:12,fontWeight:800,marginBottom:8}}>Common symptoms this phase</div>
+            <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+              {phase.symptoms.map(function(s){ return <div key={s} style={{background:phase.color+"15",color:phase.color,borderRadius:20,padding:"4px 10px",fontSize:11,fontWeight:600}}>{s}</div>; })}
+            </div>
+          </div>
+
+          {/* Log period */}
+          <div style={{...card,border:"1.5px solid "+P.coral+"40",background:P.coral+"06"}}>
+            <div style={{fontWeight:800,fontSize:13,color:P.coral,marginBottom:10}}>Log a Period</div>
+            <div style={{display:"flex",gap:8,marginBottom:8,flexWrap:"wrap"}}>
+              <div style={{flex:1,minWidth:120}}>
+                <div style={{fontSize:10,color:P.textSoft,marginBottom:4}}>Start date</div>
+                <input type="date" value={newStart} onChange={function(e){ setNewStart(e.target.value); }}
+                  style={{width:"100%",padding:"8px 10px",borderRadius:10,border:"1.5px solid "+P.border,fontSize:13}}/>
+              </div>
+              <div style={{flex:1,minWidth:120}}>
+                <div style={{fontSize:10,color:P.textSoft,marginBottom:4}}>End date</div>
+                <input type="date" value={newEnd} onChange={function(e){ setNewEnd(e.target.value); }}
+                  style={{width:"100%",padding:"8px 10px",borderRadius:10,border:"1.5px solid "+P.border,fontSize:13}}/>
+              </div>
+            </div>
+            <button onClick={savePeriod}
+              style={{background:P.coral,border:"none",color:"#fff",borderRadius:12,padding:"10px",fontSize:13,fontWeight:800,cursor:"pointer",width:"100%"}}>
+              Save Period
+            </button>
+          </div>
+
+          {/* Period history */}
+          {periods.length>0&&<div style={card}>
+            <div style={{fontWeight:800,fontSize:13,marginBottom:8}}>Period history</div>
+            {periods.slice().reverse().map(function(p){
+              var len=p.end&&p.end!==p.start?Math.floor((new Date(p.end)-new Date(p.start))/86400000)+1:1;
+              return <div key={p.start} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"7px 0",borderBottom:"1px solid "+P.border}}>
+                <div>
+                  <div style={{fontSize:12,fontWeight:700}}>{p.start}{p.end&&p.end!==p.start?" to "+p.end:""}</div>
+                  <div style={{fontSize:10,color:P.textSoft}}>{len} day{len!==1?"s":""}</div>
+                </div>
+                <button onClick={function(){ var u=periods.filter(function(x){ return x.start!==p.start; }); setPeriods(u); saveAll({periods:u}); }}
+                  style={{background:"none",border:"none",color:P.textSoft,cursor:"pointer",fontSize:18,padding:"4px 8px"}}>✕</button>
+              </div>;
+            })}
+          </div>}
+
+          {/* Full guide */}
+          <div style={{fontWeight:800,fontSize:13,marginBottom:8,marginTop:4}}>Full Cycle Guide</div>
+          {CYCLE_PHASES.map(function(ph,i){
+            var active=i===phaseIdx;
+            return <div key={i} style={{...card,border:"1.5px solid "+ph.color+(active?"50":"18"),background:active?ph.color+"06":"#fff"}}>
+              <div style={{display:"flex",justifyContent:"space-between",marginBottom:5}}>
+                <div style={{fontWeight:800,color:ph.color}}>{ph.emoji} {ph.phase}</div>
+                <div style={{fontSize:10,color:P.textSoft}}>{i===3?"Days 18-"+cycleLen:ph.phase==="Menstrual"?"Days 1-5":ph.phase==="Follicular"?"Days 6-"+(cycleLen-14-1):"Days "+(cycleLen-14)+" - "+(cycleLen-10)}</div>
+              </div>
+              <div style={{fontSize:11,color:P.textMid,marginBottom:3}}><strong>Training:</strong> {ph.training}</div>
+              <div style={{fontSize:11,color:P.textMid,marginBottom:3}}><strong>Discharge:</strong> {ph.discharge}</div>
+              <div style={{fontSize:11,color:P.textMid,marginBottom:3}}><strong>Fertility:</strong> {ph.fertility}</div>
+              <div style={{fontSize:11,color:P.textMid,marginBottom:3}}><strong>Mood:</strong> {ph.mood}</div>
+              <div style={{fontSize:11,color:P.textMid}}><strong>Nutrition:</strong> {ph.nutrition}</div>
+            </div>;
+          })}
+        </div>}
+
+      </div>
+
+      {/* ── TIME OFF MODAL ── */}
+      {timeOffModal&&(
+        <div className="modal-bg" onClick={function(e){ if(e.target===e.currentTarget) setTimeOffModal(false); }}>
+          <div className="modal">
+            <div style={{fontWeight:900,fontSize:18,marginBottom:4}}>Add Time Off</div>
+            <div style={{fontSize:11,color:P.textSoft,marginBottom:16}}>Holiday or low-activity week — plan adjusts km automatically</div>
+            <div style={{marginBottom:12}}>
+              <div style={{fontSize:11,fontWeight:700,marginBottom:6}}>Which week?</div>
+              <select value={newTOWeek} onChange={function(e){ setNewTOWeek(e.target.value); }}
+                style={{width:"100%",padding:"10px",borderRadius:10,border:"1.5px solid "+P.border,fontSize:13}}>
+                <option value="">Select week...</option>
+                {BASE_PLAN.map(function(w){ return <option key={w.week} value={w.week}>{w.week} · {w.startDate}</option>; })}
+              </select>
+            </div>
+            <div style={{marginBottom:16}}>
+              <div style={{fontSize:11,fontWeight:700,marginBottom:6}}>Training capacity: <strong style={{color:P.violet}}>{newTOPct}%</strong></div>
+              <input type="range" min="0" max="80" value={newTOPct} onChange={function(e){ setNewTOPct(parseInt(e.target.value)); }}
+                style={{width:"100%"}}/>
+              <div style={{display:"flex",justifyContent:"space-between",fontSize:9,color:P.textSoft,marginTop:4}}>
+                <span>0% (full rest)</span><span>40% (half)</span><span>80% (light)</span>
+              </div>
+              {newTOWeek&&<div style={{marginTop:8,fontSize:11,color:P.violet,fontWeight:700}}>
+                Target km: {Math.round((BASE_PLAN.find(function(w){ return w.week===newTOWeek; })||{target:0}).target*newTOPct/100)}km (vs normal {(BASE_PLAN.find(function(w){ return w.week===newTOWeek; })||{target:0}).target}km)
+              </div>}
+            </div>
+            <button onClick={addTimeOff}
+              style={{width:"100%",background:P.violet,border:"none",color:"#fff",borderRadius:12,padding:"12px",fontSize:14,fontWeight:800,cursor:"pointer",marginBottom:8}}>
+              Save Time Off
+            </button>
+            <button onClick={function(){ setTimeOffModal(false); }}
+              style={{width:"100%",background:"none",border:"1.5px solid "+P.border,borderRadius:12,padding:"10px",fontSize:13,fontWeight:600,cursor:"pointer",color:P.textMid}}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Bottom nav */}
+      <div className="bottom-nav">
+        {nav.map(function(item){
+          var id=item[0],icon=item[1],label=item[2],active=tab===id;
+          return <button key={id} onClick={function(){ setTab(id); }} style={{flex:1,padding:"8px 2px 6px",background:"transparent",border:"none",color:active?P.electric:P.textSoft,fontSize:9,cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:2,fontWeight:active?800:500,position:"relative"}}>
+            {active&&<div style={{position:"absolute",top:0,left:"50%",transform:"translateX(-50%)",width:22,height:3,borderRadius:"0 0 4px 4px",background:P.electric}}/>}
+            <div style={{fontSize:active?22:18}}>{icon}</div>
+            <span>{label}</span>
+          </button>;
+        })}
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
 </body>
 </html>
