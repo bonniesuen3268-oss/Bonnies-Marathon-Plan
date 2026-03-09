@@ -138,7 +138,7 @@ function App() {
         const saved = localStorage.getItem("bonnie_auth");
         if (saved) { const a=JSON.parse(saved); setAuth(a); doSync(a); }
         const sr = localStorage.getItem("bonnie_strava_runs");
-        if (sr) setStravaRuns(JSON.parse(sr));
+       showToast("Syncing runs...");
         const ss = localStorage.getItem("bonnie_sessions");
         if (ss) setSessions(JSON.parse(ss));
         const cd = localStorage.getItem("bonnie_cycle");
