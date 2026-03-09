@@ -5,8 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Bonnie's Marathon</title>
   <meta name="theme-color" content="#4361EE"/>
-  <meta name="apple-mobile-web-app-capable" content="yes"/>
-  <meta name="apple-mobile-web-app-title" content="Bonnie's Marathon"/>
   <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
   <script src="https://unpkg.com/@babel/standalone@7.23.5/babel.min.js"></script>
@@ -14,19 +12,45 @@
     *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
     body{background:#F4F7FF;font-family:'Segoe UI',system-ui,sans-serif}
     button:active{transform:scale(0.97)}
-    input[type=range]{-webkit-appearance:none;width:100%;height:6px;border-radius:3px;background:#E8ECF8;outline:none}
-    input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;height:20px;border-radius:50%;background:#4361EE;cursor:pointer}
     .bottom-nav{position:fixed;bottom:0;left:0;right:0;display:flex;background:#fff;border-top:1.5px solid #E8ECF8;box-shadow:0 -4px 20px rgba(67,97,238,0.08);z-index:100}
     @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
     .fade-in{animation:fadeIn 0.25s ease}
+    input[type=date],input[type=number],select{font-family:inherit;background:#fff}
+    .modal-bg{position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:200;display:flex;align-items:flex-end}
+    .modal{background:#fff;border-radius:22px 22px 0 0;padding:20px 16px 32px;width:100%;max-height:85vh;overflow-y:auto}
   </style>
 </head>
 <body>
-<div id="root"><div style="display:flex;align-items:center;justify-content:center;height:100vh;font-size:18px;color:#4361EE;flex-direction:column;gap:12px"><div style="font-size:40px">Running...</div></div></div>
+<div id="root"><div style="display:flex;align-items:center;justify-content:center;height:100vh;flex-direction:column;gap:12px;color:#4361EE"><div style="font-size:40px">🏃‍♀️</div><div>Loading...</div></div></div>
 <script type="text/babel">
-const { useState, useEffect, useCallback } = React;
-const P = { bg:"#F4F7FF", white:"#fff", electric:"#4361EE", violet:"#9B5DE5", teal:"#06D6A0", orange:"#FF6B35", yellow:"#FFD166", coral:"#EF476F", textDark:"#1A1A2E", textMid:"#4A4A6A", textSoft:"#9090B0", border:"#E8ECF8", borderMid:"#D0D8F0" };
+const { useState, useEffect, useCallback, useMemo } = React;
+const P = {
+  bg:"#F4F7FF",electric:"#4361EE",violet:"#9B5DE5",teal:"#06D6A0",
+  orange:"#FF6B35",yellow:"#FFD166",coral:"#EF476F",
+  textDark:"#1A1A2E",textMid:"#4A4A6A",textSoft:"#9090B0",
+  border:"#E8ECF8",borderMid:"#D0D8F0"
+};
 
+// ── GOAL PACES ───────────────────────────────────────────────────────────────
+// Sub-4hr marathon = 5:41/km. Training paces based on that.
+const GOAL_PACES = {
+  easy:    { min:"6:30", max:"7:00", label:"Easy",    why:"Builds aerobic base. Conversational pace." },
+  tempo:   { min:"5:50", max:"6:10", label:"Tempo",   why:"Comfortably hard. Builds lactate threshold." },
+  long:    { min:"6:20", max:"6:50", label:"Long Run", why:"Build endurance. Slightly faster than easy." },
+  race:    { min:"5:38", max:"5:44", label:"Race Pace",why:"Target race pace for sub-4hr." },
+  pilates: { label:"Cross-train",    why:"Recovery, strength, injury prevention." },
+};
+
+function getSessionPace(session) {
+  var s = session.toLowerCase();
+  if (s.includes("pilates") || s.includes("strength") || s.includes("rest")) return GOAL_PACES.pilates;
+  if (s.includes("race day")) return GOAL_PACES.race;
+  if (s.includes("tempo")) return GOAL_PACES.tempo;
+  if (s.includes("long") || s.includes("peak")) return GOAL_PACES.long;
+  return GOAL_PACES.easy;
+}
+
+// ── COMPLETED WEEKS ──────────────────────────────────────────────────────────
 const COMPLETED_WEEKS = [
   { week:"Week 1",  dates:"24-30 Nov 2025", planned:15, actual:11.0, runs:2 },
   { week:"Week 2",  dates:"1-7 Dec 2025",   planned:16, actual:9.2,  runs:2 },
@@ -44,366 +68,503 @@ const COMPLETED_WEEKS = [
   { week:"Week 14", dates:"23 Feb-1 Mar",   planned:34, actual:24.4, runs:3 },
 ];
 
-const PLAN_WEEKS = [
-  { week:"Week 15", dates:"2-8 Mar 2026",      target:30, sessions:["Easy 6km","Easy 8km","Easy 7km","Pilates","Strength"] },
-  { week:"Week 16", dates:"9-15 Mar 2026",     target:35, sessions:["Easy 6km","Tempo 8km","Easy 7km","Long 14km","Pilates"] },
-  { week:"Week 17", dates:"16-22 Mar 2026",    target:38, sessions:["Easy 7km","Tempo 9km","Easy 7km","Long 15km","Pilates"] },
-  { week:"Week 18", dates:"23-29 Mar 2026",    target:32, sessions:["Easy 6km","Tempo 8km","Easy 6km","Long 12km","Pilates"] },
-  { week:"Week 19", dates:"30 Mar-5 Apr 2026", target:28, sessions:["Easy 6km","Easy 7km","Easy 7km","Rest","Pilates"] },
-  { week:"Week 20", dates:"6-12 Apr 2026",     target:32, sessions:["Easy 6km","Tempo 7km","Easy 7km","Long 12km","Pilates"] },
-  { week:"Week 21", dates:"13-19 Apr 2026",    target:42, sessions:["Easy 7km","Tempo 9km","Easy 8km","Long 18km","Pilates"] },
-  { week:"Week 22", dates:"20-26 Apr 2026",    target:46, sessions:["Easy 7km","Tempo 10km","Easy 8km","Long 21km","Pilates"] },
-  { week:"Week 23", dates:"27 Apr-3 May 2026", target:38, sessions:["Easy 7km","Tempo 9km","Easy 6km","Long 16km","Pilates"] },
-  { week:"Week 24", dates:"4-10 May 2026",     target:30, sessions:["Easy 6km","Easy 7km","Easy 7km","Rest","Pilates"] },
-  { week:"Week 25", dates:"11-17 May 2026",    target:50, sessions:["Easy 8km","Tempo 11km","Easy 9km","Long 22km","Pilates"] },
-  { week:"Week 26", dates:"18-24 May 2026",    target:53, sessions:["Easy 8km","Tempo 11km","Easy 9km","Long 25km","Pilates"] },
-  { week:"Week 27", dates:"25-31 May 2026",    target:55, sessions:["Easy 8km","Tempo 12km","Easy 9km","Long 26km","Pilates"] },
-  { week:"Week 28", dates:"1-7 Jun 2026",      target:48, sessions:["Easy 8km","Tempo 10km","Easy 8km","Long 22km","Pilates"] },
-  { week:"Week 29", dates:"8-14 Jun 2026",     target:28, sessions:["Easy 6km","Easy 7km","Easy 7km","Rest","Pilates"] },
-  { week:"Week 30", dates:"15-21 Jun 2026",    target:35, sessions:["Easy 7km","Tempo 7km","Easy 7km","Long 14km","Pilates"] },
-  { week:"Week 31", dates:"22-28 Jun 2026",    target:56, sessions:["Easy 8km","Tempo 12km","Easy 9km","Long 27km","Pilates"] },
-  { week:"Week 32", dates:"29 Jun-5 Jul 2026", target:57, sessions:["Easy 8km","Tempo 12km","Easy 8km","PEAK Long 29km","Pilates"] },
-  { week:"Week 33", dates:"6-12 Jul 2026",     target:55, sessions:["Easy 8km","Tempo 11km","Easy 8km","Long 28km","Pilates"] },
-  { week:"Week 34", dates:"13-19 Jul 2026",    target:50, sessions:["Easy 7km","Tempo 11km","Easy 8km","Long 24km","Pilates"] },
-  { week:"Week 35", dates:"20-26 Jul 2026",    target:44, sessions:["Easy 7km","Tempo 10km","Easy 7km","Long 20km","Pilates"] },
-  { week:"Week 36", dates:"27 Jul-2 Aug 2026", target:38, sessions:["Easy 6km","Tempo 9km","Easy 7km","Long 16km","Pilates"] },
-  { week:"Week 37", dates:"3-9 Aug 2026",      target:30, sessions:["Easy 6km","Tempo 8km","Easy 6km","Long 10km","Pilates"] },
-  { week:"Week 38", dates:"10-16 Aug 2026",    target:22, sessions:["Easy 5km","Tempo 7km","Easy 5km","Long 5km","Pilates"] },
-  { week:"Week 39", dates:"17-23 Aug 2026",    target:15, sessions:["Easy 5km","Easy 5km","Easy 5km","Pilates"] },
-  { week:"Week 40", dates:"24-30 Aug 2026",    target:8,  sessions:["Easy 3km Tue","Easy 5km Thu","RACE DAY 30 Aug"] },
+// ── BASE PLAN ────────────────────────────────────────────────────────────────
+const BASE_PLAN = [
+  { week:"Week 15", startDate:"2026-03-02", target:30, sessions:["Easy 6km","Tempo 8km","Easy 7km","Long 9km","Pilates/Strength"] },
+  { week:"Week 16", startDate:"2026-03-09", target:35, sessions:["Easy 6km","Tempo 8km","Easy 7km","Long 14km","Pilates/Strength"] },
+  { week:"Week 17", startDate:"2026-03-16", target:38, sessions:["Easy 7km","Tempo 9km","Easy 7km","Long 15km","Pilates/Strength"] },
+  { week:"Week 18", startDate:"2026-03-23", target:32, sessions:["Easy 6km","Tempo 8km","Easy 6km","Long 12km","Pilates/Strength"] },
+  { week:"Week 19", startDate:"2026-03-30", target:28, sessions:["Easy 6km","Easy 7km","Easy 7km","Rest","Pilates/Strength"] },
+  { week:"Week 20", startDate:"2026-04-06", target:32, sessions:["Easy 6km","Tempo 7km","Easy 7km","Long 12km","Pilates/Strength"] },
+  { week:"Week 21", startDate:"2026-04-13", target:42, sessions:["Easy 7km","Tempo 9km","Easy 8km","Long 18km","Pilates/Strength"] },
+  { week:"Week 22", startDate:"2026-04-20", target:46, sessions:["Easy 7km","Tempo 10km","Easy 8km","Long 21km","Pilates/Strength"] },
+  { week:"Week 23", startDate:"2026-04-27", target:38, sessions:["Easy 7km","Tempo 9km","Easy 6km","Long 16km","Pilates/Strength"] },
+  { week:"Week 24", startDate:"2026-05-04", target:30, sessions:["Easy 6km","Easy 7km","Easy 7km","Rest","Pilates/Strength"] },
+  { week:"Week 25", startDate:"2026-05-11", target:50, sessions:["Easy 8km","Tempo 11km","Easy 9km","Long 22km","Pilates/Strength"] },
+  { week:"Week 26", startDate:"2026-05-18", target:53, sessions:["Easy 8km","Tempo 11km","Easy 9km","Long 25km","Pilates/Strength"] },
+  { week:"Week 27", startDate:"2026-05-25", target:55, sessions:["Easy 8km","Tempo 12km","Easy 9km","Long 26km","Pilates/Strength"] },
+  { week:"Week 28", startDate:"2026-06-01", target:48, sessions:["Easy 8km","Tempo 10km","Easy 8km","Long 22km","Pilates/Strength"] },
+  { week:"Week 29", startDate:"2026-06-08", target:28, sessions:["Easy 6km","Easy 7km","Easy 7km","Rest","Pilates/Strength"] },
+  { week:"Week 30", startDate:"2026-06-15", target:35, sessions:["Easy 7km","Tempo 7km","Easy 7km","Long 14km","Pilates/Strength"] },
+  { week:"Week 31", startDate:"2026-06-22", target:56, sessions:["Easy 8km","Tempo 12km","Easy 9km","Long 27km","Pilates/Strength"] },
+  { week:"Week 32", startDate:"2026-06-29", target:57, sessions:["Easy 8km","Tempo 12km","Easy 8km","PEAK Long 29km","Pilates/Strength"] },
+  { week:"Week 33", startDate:"2026-07-06", target:55, sessions:["Easy 8km","Tempo 11km","Easy 8km","Long 28km","Pilates/Strength"] },
+  { week:"Week 34", startDate:"2026-07-13", target:50, sessions:["Easy 7km","Tempo 11km","Easy 8km","Long 24km","Pilates/Strength"] },
+  { week:"Week 35", startDate:"2026-07-20", target:44, sessions:["Easy 7km","Tempo 10km","Easy 7km","Long 20km","Pilates/Strength"] },
+  { week:"Week 36", startDate:"2026-07-27", target:38, sessions:["Easy 6km","Tempo 9km","Easy 7km","Long 16km","Pilates/Strength"] },
+  { week:"Week 37", startDate:"2026-08-03", target:30, sessions:["Easy 6km","Tempo 8km","Easy 6km","Long 10km","Pilates/Strength"] },
+  { week:"Week 38", startDate:"2026-08-10", target:22, sessions:["Easy 5km","Tempo 7km","Easy 5km","Long 5km","Pilates/Strength"] },
+  { week:"Week 39", startDate:"2026-08-17", target:15, sessions:["Easy 5km","Easy 5km","Easy 5km","Pilates/Strength"] },
+  { week:"Week 40", startDate:"2026-08-24", target:8,  sessions:["Easy 3km","Easy 5km","RACE DAY 30 Aug"] },
 ];
 
 const CYCLE_PHASES = [
-  { phase:"Menstrual", emoji:"🩸", days:"Days 1-5", color:"#EF476F",
-    training:"Easy runs only. Skip tempo and long runs if tired. Rest IS training.",
-    nutrition:"Iron-rich foods, magnesium, anti-inflammatory. Epsom salt baths.",
+  { phase:"Menstrual",  emoji:"🩸", color:"#EF476F", mod:"REDUCE",
+    training:"Easy runs only. Skip tempo if tired. Rest IS training.",
+    nutrition:"Iron-rich foods, magnesium, anti-inflammatory.",
     discharge:"Light to heavy bleeding. Heaviest days 2-3.",
-    mood:"Energy low, may feel fatigued or emotional. Be kind to yourself.",
-    fertility:"Not fertile. Very low chance of conception.",
-    symptoms:["Cramps","Fatigue","Bloating","Lower back pain","Mood dips"],
-    mod:"REDUCE" },
-  { phase:"Follicular", emoji:"🌷", days:"Days 6-13", color:"#4361EE",
+    mood:"Energy low, may feel fatigued. Be kind to yourself.",
+    fertility:"Not fertile.", symptoms:["Cramps","Fatigue","Bloating","Lower back pain"] },
+  { phase:"Follicular", emoji:"🌷", color:"#4361EE", mod:"NORMAL",
     training:"Rising energy! Great for tempo runs and building mileage.",
-    nutrition:"Higher carbs, lean protein, fermented foods, cruciferous veg.",
-    discharge:"Dry at first, then white/creamy as ovulation approaches.",
-    mood:"Energy rising, optimistic, motivated. Best for hard training.",
-    fertility:"Increasing. Egg maturing, fertility rises toward end.",
-    symptoms:["Rising energy","Improved mood","Better sleep","More motivation"],
-    mod:"NORMAL" },
-  { phase:"Ovulation", emoji:"🌺", days:"Days 14-17", color:"#FF6B35",
+    nutrition:"Higher carbs, lean protein, fermented foods.",
+    discharge:"Dry then white/creamy as ovulation approaches.",
+    mood:"Optimistic, motivated. Best for hard training.",
+    fertility:"Increasing — egg maturing.", symptoms:["Rising energy","Better mood","Motivation"] },
+  { phase:"Ovulation",  emoji:"🌺", color:"#FF6B35", mod:"PEAK",
     training:"PEAK window! Schedule longest runs and hardest tempos here.",
-    nutrition:"Omega-3s, zinc (pumpkin seeds), collagen, antioxidants.",
-    discharge:"Clear, stretchy egg-white discharge — this is your fertility sign!",
-    mood:"Peak confidence, sociable, high energy. Great for races.",
-    fertility:"PEAK fertile window. Highest chance of conception days 13-17.",
-    symptoms:["Peak energy","High confidence","Possible ovulation twinge","High libido"],
-    mod:"PEAK" },
-  { phase:"Luteal", emoji:"🍂", days:"Days 18-28", color:"#9B5DE5",
-    training:"Early luteal good for moderate training. Wind down last 3-4 days.",
+    nutrition:"Omega-3s, zinc, collagen, antioxidants.",
+    discharge:"Clear stretchy egg-white discharge — fertility sign!",
+    mood:"Peak confidence, high energy. Great for races.",
+    fertility:"PEAK fertile window — days around ovulation.", symptoms:["Peak energy","High confidence","High libido"] },
+  { phase:"Luteal",     emoji:"🍂", color:"#9B5DE5", mod:"TAPER",
+    training:"Moderate early, wind down last 3-4 days before period.",
     nutrition:"Magnesium (dark choc, avocado), complex carbs, cut caffeine.",
-    discharge:"Thicker, white/cloudy. Decreases toward end of phase.",
-    mood:"Early: positive. Late: PMS may bring irritability or low mood.",
-    fertility:"Not fertile after ovulation. Progesterone dominates.",
-    symptoms:["Bloating","Breast tenderness","Food cravings","Mood changes","Fatigue"],
-    mod:"TAPER" },
+    discharge:"Thicker white/cloudy, decreases near period.",
+    mood:"Early positive, late PMS may bring mood changes.",
+    fertility:"Not fertile after ovulation.", symptoms:["Bloating","Cravings","Mood changes","Fatigue"] },
 ];
 
 const STRAVA_HISTORY = {
-  "2025-12-02":{ km:5.05,  pace:"6:31", duration:"32:58", notes:"Syd Mara Run 5" },
-  "2025-12-04":{ km:4.11,  pace:"6:07", duration:"25:11", notes:"Syd Mara Run 6" },
-  "2025-12-12":{ km:9.29,  pace:"6:20", duration:"58:55", notes:"Syd Mara Run 7" },
-  "2025-12-15":{ km:5.41,  pace:"6:12", duration:"33:36", notes:"Syd Mara Run 10" },
-  "2025-12-22":{ km:7.04,  pace:"6:23", duration:"44:58", notes:"Syd Mara Run 10" },
-  "2025-12-27":{ km:6.83,  pace:"6:32", duration:"44:43", notes:"Syd Mara Run 12" },
-  "2025-12-30":{ km:10.09, pace:"6:23", duration:"64:33", notes:"Syd Mara Run 13" },
-  "2026-01-01":{ km:6.87,  pace:"6:12", duration:"42:42", notes:"Syd Mara Run 14" },
-  "2026-01-04":{ km:5.07,  pace:"6:08", duration:"31:12", notes:"Syd Mara Run 16" },
-  "2026-01-06":{ km:6.29,  pace:"6:21", duration:"39:57", notes:"Syd Mara Run 17" },
-  "2026-01-11":{ km:11.69, pace:"6:23", duration:"74:40", notes:"Syd Mara Run 18" },
-  "2026-01-12":{ km:6.87,  pace:"6:17", duration:"43:14", notes:"Syd Mara Run 19" },
-  "2026-01-16":{ km:5.85,  pace:"6:15", duration:"36:38", notes:"Syd Mara Run 20" },
-  "2026-01-20":{ km:6.18,  pace:"6:07", duration:"37:52", notes:"Syd Mara Run 21" },
-  "2026-01-23":{ km:10.62, pace:"6:14", duration:"66:11", notes:"Syd Mara Run 24" },
-  "2026-01-26":{ km:6.81,  pace:"5:51", duration:"39:56", notes:"Syd Mara Run 25" },
-  "2026-01-28":{ km:6.72,  pace:"6:14", duration:"41:53", notes:"Syd Mara Run 26" },
-  "2026-01-29":{ km:5.73,  pace:"6:28", duration:"37:05", notes:"TSRC Bondi" },
-  "2026-02-02":{ km:5.71,  pace:"5:49", duration:"33:13", notes:"Syd Mara Run 28" },
-  "2026-02-03":{ km:12.78, pace:"6:13", duration:"79:34", notes:"Syd Mara Run 29" },
-  "2026-02-05":{ km:13.07, pace:"6:18", duration:"82:26", notes:"Morning Run" },
-  "2026-02-09":{ km:10.51, pace:"6:13", duration:"65:24", notes:"Syd Mara Run 30" },
-  "2026-02-12":{ km:11.39, pace:"6:08", duration:"69:55", notes:"Morning Run" },
-  "2026-02-14":{ km:6.98,  pace:"5:56", duration:"41:27", notes:"Morning Run" },
-  "2026-02-17":{ km:6.84,  pace:"6:02", duration:"41:19", notes:"Morning Run" },
-  "2026-02-26":{ km:16.02, pace:"6:10", duration:"98:52", notes:"Morning Run" },
+  "2025-12-02":{ km:5.05, pace:"6:31", duration:"32:58", notes:"Syd Mara Run 5" },
+  "2025-12-04":{ km:4.11, pace:"6:07", duration:"25:11", notes:"Syd Mara Run 6" },
+  "2025-12-12":{ km:9.29, pace:"6:20", duration:"58:55", notes:"Syd Mara Run 7" },
+  "2025-12-15":{ km:5.41, pace:"6:12", duration:"33:36", notes:"Syd Mara Run 10" },
+  "2025-12-22":{ km:7.04, pace:"6:23", duration:"44:58", notes:"Syd Mara Run 10" },
+  "2025-12-27":{ km:6.83, pace:"6:32", duration:"44:43", notes:"Syd Mara Run 12" },
+  "2025-12-30":{ km:10.09,pace:"6:23", duration:"64:33", notes:"Syd Mara Run 13" },
+  "2026-01-01":{ km:6.87, pace:"6:12", duration:"42:42", notes:"Syd Mara Run 14" },
+  "2026-01-04":{ km:5.07, pace:"6:08", duration:"31:12", notes:"Syd Mara Run 16" },
+  "2026-01-06":{ km:6.29, pace:"6:21", duration:"39:57", notes:"Syd Mara Run 17" },
+  "2026-01-11":{ km:11.69,pace:"6:23", duration:"74:40", notes:"Syd Mara Run 18" },
+  "2026-01-12":{ km:6.87, pace:"6:17", duration:"43:14", notes:"Syd Mara Run 19" },
+  "2026-01-16":{ km:5.85, pace:"6:15", duration:"36:38", notes:"Syd Mara Run 20" },
+  "2026-01-20":{ km:6.18, pace:"6:07", duration:"37:52", notes:"Syd Mara Run 21" },
+  "2026-01-23":{ km:10.62,pace:"6:14", duration:"66:11", notes:"Syd Mara Run 24" },
+  "2026-01-26":{ km:6.81, pace:"5:51", duration:"39:56", notes:"Syd Mara Run 25" },
+  "2026-01-28":{ km:6.72, pace:"6:14", duration:"41:53", notes:"Syd Mara Run 26" },
+  "2026-01-29":{ km:5.73, pace:"6:28", duration:"37:05", notes:"TSRC Bondi" },
+  "2026-02-02":{ km:5.71, pace:"5:49", duration:"33:13", notes:"Syd Mara Run 28" },
+  "2026-02-03":{ km:12.78,pace:"6:13", duration:"79:34", notes:"Syd Mara Run 29" },
+  "2026-02-05":{ km:13.07,pace:"6:18", duration:"82:26", notes:"Morning Run" },
+  "2026-02-09":{ km:10.51,pace:"6:13", duration:"65:24", notes:"Syd Mara Run 30" },
+  "2026-02-12":{ km:11.39,pace:"6:08", duration:"69:55", notes:"Morning Run" },
+  "2026-02-14":{ km:6.98, pace:"5:56", duration:"41:27", notes:"Morning Run" },
+  "2026-02-17":{ km:6.84, pace:"6:02", duration:"41:19", notes:"Morning Run" },
+  "2026-02-26":{ km:16.02,pace:"6:10", duration:"98:52", notes:"Morning Run" },
 };
 
+// ── HELPERS ──────────────────────────────────────────────────────────────────
 function mpsToMmSs(mps) {
-  if (!mps || mps <= 0) return "";
-  var s = 1000/mps, m = Math.floor(s/60);
-  return m + ":" + Math.round(s%60).toString().padStart(2,"0");
+  if (!mps || mps<=0) return "";
+  var s=1000/mps, m=Math.floor(s/60);
+  return m+":"+Math.round(s%60).toString().padStart(2,"0");
 }
-
-function paceToMin(paceStr) {
-  if (!paceStr) return null;
-  var parts = paceStr.split(":");
-  if (parts.length !== 2) return null;
-  return parseInt(parts[0]) + parseInt(parts[1])/60;
+function paceToMin(p) {
+  if (!p) return null;
+  var parts=p.split(":"); if(parts.length!==2) return null;
+  return parseInt(parts[0])+parseInt(parts[1])/60;
 }
-
 function parseStravaActivities(acts) {
-  var runs = {};
-  (acts||[]).filter(function(a){ return a.type==="Run" && a.distance>=500; }).forEach(function(a) {
-    var d = new Date(a.start_date_local).toISOString().substring(0,10);
-    var key = runs[d] ? d+"-"+a.id : d;
-    var mt = a.moving_time, mm=Math.floor(mt/60), ms=mt%60;
-    runs[key] = { km:+(a.distance/1000).toFixed(2), pace:mpsToMmSs(a.average_speed), duration:mm+":"+ms.toString().padStart(2,"0"), elevation:String(Math.round(a.total_elevation_gain||0)), notes:a.name||"Run" };
+  var runs={};
+  (acts||[]).filter(function(a){ return a.type==="Run"&&a.distance>=500; }).forEach(function(a){
+    var d=new Date(a.start_date_local).toISOString().substring(0,10);
+    var key=runs[d]?d+"-"+a.id:d;
+    var mt=a.moving_time,mm=Math.floor(mt/60),ms=mt%60;
+    runs[key]={ km:+(a.distance/1000).toFixed(2), pace:mpsToMmSs(a.average_speed), duration:mm+":"+ms.toString().padStart(2,"0"), notes:a.name||"Run" };
   });
   return runs;
 }
 
-function getDayInCycle(periods) {
-  if (!periods || periods.length === 0) return 10;
-  var sorted = periods.slice().sort(function(a,b){ return new Date(b.start)-new Date(a.start); });
-  var pStart = new Date(sorted[0].start);
-  var today = new Date(); today.setHours(0,0,0,0);
-  var diff = Math.floor((today - pStart) / 86400000) + 1;
-  while (diff > 28) diff -= 28;
-  return Math.max(1, diff);
+// Cycle helpers
+function getPhaseIdx(day, cycleLen) {
+  var cl = cycleLen || 28;
+  var ovDay = cl - 14; // ovulation
+  if (day<=5) return 0; // menstrual
+  if (day<=ovDay-1) return 1; // follicular
+  if (day<=ovDay+3) return 2; // ovulation
+  return 3; // luteal
+}
+function getDayInCycle(periods, cycleLen) {
+  if (!periods||periods.length===0) return 10;
+  var sorted=periods.slice().sort(function(a,b){ return new Date(b.start)-new Date(a.start); });
+  var pStart=new Date(sorted[0].start);
+  var today=new Date(); today.setHours(0,0,0,0);
+  var diff=Math.floor((today-pStart)/86400000)+1;
+  var cl=cycleLen||28;
+  while(diff>cl) diff-=cl;
+  return Math.max(1,diff);
+}
+function getWeekPhase(weekStartDate, periods, cycleLen) {
+  if (!periods||periods.length===0) return null;
+  var wDate=new Date(weekStartDate);
+  var sorted=periods.slice().sort(function(a,b){ return new Date(b.start)-new Date(a.start); });
+  var pStart=new Date(sorted[0].start);
+  var cl=cycleLen||28;
+  var diff=Math.floor((wDate-pStart)/86400000)+1;
+  while(diff>cl) diff-=cl;
+  while(diff<1) diff+=cl;
+  return { phaseIdx:getPhaseIdx(diff,cl), day:diff };
 }
 
-function getPhaseIdx(day) {
-  if (day <= 5) return 0;
-  if (day <= 13) return 1;
-  if (day <= 17) return 2;
-  return 3;
+// Build live plan with time-off and cycle adjustments
+function buildLivePlan(timeOffWeeks, periods, cycleLen) {
+  return BASE_PLAN.map(function(wk) {
+    var tof = (timeOffWeeks||[]).find(function(t){ return t.week===wk.week; });
+    var ci = getWeekPhase(wk.startDate, periods, cycleLen);
+    var ph = ci ? CYCLE_PHASES[ci.phaseIdx] : null;
+    var adjustedTarget = wk.target;
+    var note = "";
+    if (tof) {
+      adjustedTarget = Math.round(wk.target * (tof.pct/100));
+      note = "Holiday: "+tof.pct+"% capacity";
+    } else if (ph) {
+      if (ph.mod==="REDUCE") { adjustedTarget=Math.round(wk.target*0.75); note="Period week: reduced"; }
+      else if (ph.mod==="PEAK") { note="Peak energy: push it!"; }
+      else if (ph.mod==="TAPER") { adjustedTarget=Math.round(wk.target*0.9); note="Luteal: slight taper"; }
+    }
+    return Object.assign({}, wk, { adjustedTarget:adjustedTarget, cycleInfo:ci, phase:ph, note:note, isTimeOff:!!tof });
+  });
 }
 
-function getWeekPhase(weekDates, periods) {
-  if (!periods || periods.length === 0) return null;
-  var mons = {Nov:10,Dec:11,Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7};
-  var str = weekDates.split("-")[0].trim().replace("–","");
-  var parts = str.split(" ");
-  var day = parseInt(parts[0]);
-  var monStr = parts[1] ? parts[1].substring(0,3) : null;
-  if (!monStr || mons[monStr] === undefined) return null;
-  var mon = mons[monStr];
-  var yr = (mon >= 10) ? 2025 : 2026;
-  var wDate = new Date(yr, mon, day);
-  var sorted = periods.slice().sort(function(a,b){ return new Date(b.start)-new Date(a.start); });
-  var pStart = new Date(sorted[0].start);
-  var diff = Math.floor((wDate - pStart) / 86400000) + 1;
-  while (diff > 28) diff -= 28;
-  while (diff < 1) diff += 28;
-  return { phaseIdx: getPhaseIdx(diff), day: diff };
+// Fitness score (simple: % of planned km completed, weighted recent)
+function calcFitnessScore(completedWeeks) {
+  var recent=completedWeeks.slice(-6);
+  var score=recent.reduce(function(s,w){ return s+(w.actual/w.planned); },0)/recent.length;
+  return Math.min(1, score);
 }
 
-// ── Mini bar chart ─────────────────────────────────────────────────────────
-function BarChart({ data }) {
-  const [hovered, setHovered] = useState(null);
-  var max = Math.max.apply(null, data.map(function(d){ return Math.max(d.planned||0, d.actual||0); }));
-  if (max === 0) max = 1;
+// Goal assessment
+function assessGoal(allRuns, completedWeeks, sessions, livePlan) {
+  var paces=Object.values(allRuns).map(function(r){ return paceToMin(r.pace); }).filter(Boolean);
+  var avgP=paces.length>0?paces.reduce(function(s,p){ return s+p; },0)/paces.length:6.5;
+  var goalPace=5.683; // 5:41
+  var paceGap=avgP-goalPace; // positive = slower than goal
+  var fitness=calcFitnessScore(completedWeeks);
+  var totalPlanned=completedWeeks.reduce(function(s,w){ return s+w.planned; },0);
+  var totalActual=completedWeeks.reduce(function(s,w){ return s+w.actual; },0);
+  var adherence=totalActual/totalPlanned;
+
+  // Current week done?
+  var curWk=livePlan.find(function(w){ return w.week==="Week 16"; });
+  var weekDone=0,weekTotal=0;
+  if(curWk){ weekTotal=curWk.sessions.length; weekDone=curWk.sessions.filter(function(_,i){ return sessions["Week 16_"+i]; }).length; }
+
+  var status, color, message, tip;
+  if (paceGap > 0.6 && adherence < 0.75) {
+    status="Needs Focus"; color=P.coral;
+    message="You're currently "+Math.round(paceGap*60)+"sec/km off goal pace and below planned km. Sub-4 is still achievable but needs consistency.";
+    tip="Focus on completing tempo runs at 5:50-6:10/km. Don't skip the long runs!";
+  } else if (paceGap > 0.4) {
+    status="Building"; color=P.orange;
+    message="Pace gap is "+Math.round(paceGap*60)+"sec/km. You're building well — keep pushing tempo sessions.";
+    tip="Nail your tempo runs at 5:50-6:10/km. Each one closes the gap.";
+  } else if (adherence >= 0.9 && paceGap < 0.3) {
+    status="On Track"; color=P.teal;
+    message="Great consistency! Pace is getting close to goal. Keep up the long runs.";
+    tip="You're on track. Don't skip recovery — it's when fitness is built.";
+  } else {
+    status="Good Progress"; color="#06D6A0";
+    message="Solid progress! Stay consistent and the pace will come.";
+    tip="Keep showing up. Consistency beats perfection.";
+  }
+
+  var weekStatus, weekColor;
+  if(weekTotal===0){ weekStatus=""; weekColor=P.textSoft; }
+  else if(weekDone===weekTotal){ weekStatus="Week complete!"; weekColor=P.teal; }
+  else if(weekDone>=Math.ceil(weekTotal/2)){ weekStatus="Great week!"; weekColor=P.teal; }
+  else if(weekDone===0){ weekStatus="Not started"; weekColor=P.textSoft; }
+  else { weekStatus="In progress"; weekColor=P.orange; }
+
+  return { status, color, message, tip, paceGap, adherence, fitness, weekStatus, weekColor, weekDone, weekTotal };
+}
+
+// ── BAR CHART ────────────────────────────────────────────────────────────────
+function BarChart({ pastData, liveWeek, sessions }) {
+  const [hov, setHov] = useState(null);
+  // Calculate live week actual from sessions + strava
+  var liveActual = 0;
+  if (liveWeek) {
+    liveWeek.sessions.forEach(function(s,i){
+      if (sessions["Week 16_"+i]) {
+        var km=parseFloat(s.match(/(\d+)km/)?.[1]||0);
+        liveActual+=km;
+      }
+    });
+  }
+  var allData = pastData.concat(liveWeek?[{ week:"Week 16", dates:"This week", planned:liveWeek.target, actual:liveActual, live:true }]:[]);
+  var max=Math.max.apply(null,allData.map(function(d){ return Math.max(d.planned||0,d.actual||0); }));
+  if(max===0) max=1;
   return (
     <div>
-      {hovered !== null && (
-        <div style={{ background:P.textDark, color:"#fff", borderRadius:12, padding:"8px 12px", marginBottom:8, fontSize:11 }}>
-          <strong>{data[hovered].week}</strong> &bull; {data[hovered].dates}<br/>
-          <span style={{color:P.teal}}>Actual: {data[hovered].actual}km</span> &nbsp;
-          <span style={{color:"rgba(255,255,255,0.5)"}}>Planned: {data[hovered].planned}km</span> &nbsp;
-          <span style={{color:P.yellow}}>Runs: {data[hovered].runs}</span>
+      {hov!==null&&(
+        <div style={{background:P.textDark,color:"#fff",borderRadius:12,padding:"8px 12px",marginBottom:8,fontSize:11}}>
+          <strong>{allData[hov].week}</strong> {allData[hov].live?"(this week — ticking off sessions)":""}<br/>
+          <span style={{color:P.teal}}>Actual: {allData[hov].actual.toFixed(1)}km</span>&nbsp;
+          <span style={{color:"rgba(255,255,255,0.5)"}}>Planned: {allData[hov].planned}km</span>
+          {allData[hov].runs&&<span style={{color:P.yellow}}>&nbsp;Runs: {allData[hov].runs}</span>}
         </div>
       )}
-      <div style={{ display:"flex", alignItems:"flex-end", gap:3, height:70, paddingBottom:2, overflowX:"auto" }}>
-        {data.map(function(d, i) {
-          var aH = Math.max(Math.round((d.actual/max)*64), 2);
-          var pH = Math.max(Math.round((d.planned/max)*64), 2);
-          var over = d.actual >= d.planned;
-          var sel = hovered === i;
+      <div style={{display:"flex",alignItems:"flex-end",gap:3,height:72,overflowX:"auto",paddingBottom:2}}>
+        {allData.map(function(d,i){
+          var aH=Math.max(Math.round((d.actual/max)*66),2);
+          var pH=Math.max(Math.round((d.planned/max)*66),2);
+          var over=d.actual>=d.planned;
+          var sel=hov===i;
           return (
-            <div key={i} style={{ display:"flex", alignItems:"flex-end", gap:1, cursor:"pointer", flexShrink:0 }}
-              onMouseEnter={function(){ setHovered(i); }} onMouseLeave={function(){ setHovered(null); }}
-              onClick={function(){ setHovered(sel?null:i); }}>
-              <div style={{ width:9, height:pH, background:sel?P.electric+"90":P.electric+"25", borderRadius:"3px 3px 0 0" }}/>
-              <div style={{ width:9, height:aH, background:sel?(over?P.teal:P.orange):(over?P.teal+"CC":P.orange+"AA"), borderRadius:"3px 3px 0 0" }}/>
+            <div key={i} style={{display:"flex",alignItems:"flex-end",gap:1,cursor:"pointer",flexShrink:0}}
+              onMouseEnter={function(){ setHov(i); }} onMouseLeave={function(){ setHov(null); }}
+              onClick={function(){ setHov(sel?null:i); }}>
+              <div style={{width:9,height:pH,background:sel?P.electric+"90":P.electric+"25",borderRadius:"3px 3px 0 0"}}/>
+              <div style={{width:9,height:aH,background:sel?(over?P.teal:P.orange):(over?P.teal+"CC":P.orange+"AA"),borderRadius:"3px 3px 0 0",
+                outline:d.live?"2px dashed "+P.electric:"none",outlineOffset:1}}/>
             </div>
           );
         })}
       </div>
-      <div style={{ fontSize:9, color:P.textSoft, marginTop:3 }}>Tap a bar for week details</div>
+      <div style={{fontSize:9,color:P.textSoft,marginTop:3}}>Tap bar for details · Current week updates as you tick off sessions</div>
     </div>
   );
 }
 
-// ── This week tracker ──────────────────────────────────────────────────────
-function WeekTracker({ wk, sessions, onToggle }) {
-  var done = wk.sessions.filter(function(_,i){ return sessions[wk.week+"_"+i]; }).length;
+// ── SESSION ITEM ─────────────────────────────────────────────────────────────
+function SessionItem({ session, done, onToggle, showPace }) {
+  const [open, setOpen] = useState(false);
+  var pace = getSessionPace(session);
+  var isCross = session.toLowerCase().includes("pilates")||session.toLowerCase().includes("strength")||session.toLowerCase().includes("rest");
+  var isRace = session.toLowerCase().includes("race day");
+  var emoji = done?"✅":isRace?"🏁":isCross?"🧘":session.includes("Tempo")?"🔥":session.includes("Long")||session.includes("PEAK")?"🌟":"🐣";
   return (
-    <div>
-      <div style={{ display:"flex", justifyContent:"space-between", marginBottom:6 }}>
-        <div style={{ fontSize:12, fontWeight:800 }}>This week &bull; {wk.week}</div>
-        <div style={{ fontSize:11, color:P.electric, fontWeight:700 }}>{done}/{wk.sessions.length}</div>
+    <div style={{borderBottom:"1px solid "+P.border}}>
+      <div style={{display:"flex",alignItems:"center",gap:9,padding:"8px 0",cursor:"pointer"}} onClick={onToggle}>
+        <div style={{width:22,height:22,borderRadius:"50%",border:"2px solid "+(done?P.teal:P.borderMid),background:done?P.teal:"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+          {done&&<span style={{color:"#fff",fontSize:11,fontWeight:900}}>✓</span>}
+        </div>
+        <span style={{flex:1,fontSize:12,color:done?P.textSoft:P.textDark,textDecoration:done?"line-through":"none",fontWeight:done?400:600}}>{emoji} {session}</span>
+        {showPace&&!isCross&&!isRace&&(
+          <span onClick={function(e){e.stopPropagation();setOpen(!open);}} style={{fontSize:9,fontWeight:700,color:pace===GOAL_PACES.tempo?P.orange:P.electric,background:(pace===GOAL_PACES.tempo?P.orange:P.electric)+"15",borderRadius:6,padding:"2px 6px",cursor:"pointer",flexShrink:0}}>
+            {pace.min}-{pace.max}
+          </span>
+        )}
       </div>
-      <div style={{ height:5, background:P.border, borderRadius:3, overflow:"hidden", marginBottom:8 }}>
-        <div style={{ height:"100%", width:(done/wk.sessions.length*100)+"%", background:"linear-gradient(90deg,"+P.electric+","+P.teal+")", borderRadius:3, transition:"width 0.4s" }}/>
-      </div>
-      {wk.sessions.map(function(s, i) {
-        var isDone = sessions[wk.week+"_"+i];
-        var isTempo = s.includes("Tempo"), isLong = s.includes("Long"), isCross = s.includes("Pilates")||s.includes("Strength");
-        var emoji = isDone ? "✅" : isTempo ? "🔥" : isLong ? "🌟" : isCross ? "🧘" : "🐣";
-        return (
-          <div key={i} onClick={function(){ onToggle(wk.week, i); }}
-            style={{ display:"flex", alignItems:"center", gap:8, padding:"7px 8px", borderRadius:10, background:isDone?P.teal+"15":P.border+"50", marginBottom:4, cursor:"pointer", border:"1px solid "+(isDone?P.teal+"40":P.border) }}>
-            <div style={{ width:22, height:22, borderRadius:"50%", border:"2px solid "+(isDone?P.teal:P.borderMid), background:isDone?P.teal:"transparent", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
-              {isDone && <span style={{color:"#fff",fontWeight:900,fontSize:11}}>✓</span>}
-            </div>
-            <span style={{ fontSize:11, fontWeight:600, color:isDone?P.textSoft:P.textDark, textDecoration:isDone?"line-through":"none" }}>{emoji} {s}</span>
-          </div>
-        );
-      })}
+      {open&&(
+        <div style={{background:P.electric+"08",borderRadius:10,padding:"8px 10px",marginBottom:8,fontSize:11}}>
+          <div style={{fontWeight:800,color:P.electric,marginBottom:2}}>{pace.label} pace: {pace.min}–{pace.max}/km</div>
+          <div style={{color:P.textMid}}>{pace.why}</div>
+          {!isCross&&<div style={{color:P.teal,marginTop:4,fontWeight:600}}>Race pace target: 5:38–5:44/km</div>}
+        </div>
+      )}
     </div>
   );
 }
 
-// ── Main App ───────────────────────────────────────────────────────────────
+// ── MAIN APP ─────────────────────────────────────────────────────────────────
 function App() {
   const [tab, setTab] = useState("dashboard");
   const [auth, setAuth] = useState(null);
   const [stravaRuns, setStravaRuns] = useState({});
   const [syncing, setSyncing] = useState(false);
   const [sessions, setSessions] = useState({});
+  const [closedWeeks, setClosedWeeks] = useState({});
   const [periods, setPeriods] = useState([]);
+  const [cycleLen, setCycleLen] = useState(28);
   const [newStart, setNewStart] = useState("");
   const [newEnd, setNewEnd] = useState("");
   const [expanded, setExpanded] = useState(null);
+  const [timeOffWeeks, setTimeOffWeeks] = useState([]);
+  const [timeOffModal, setTimeOffModal] = useState(false);
+  const [newTOWeek, setNewTOWeek] = useState("");
+  const [newTOPct, setNewTOPct] = useState(30);
   const [toast, setToast] = useState("");
 
-  const showToast = function(m){ setToast(m); setTimeout(function(){ setToast(""); }, 3000); };
-  var allRuns = Object.assign({}, STRAVA_HISTORY, stravaRuns);
+  const showToast = function(m){ setToast(m); setTimeout(function(){ setToast(""); },3000); };
+
+  var allRuns = useMemo(function(){ return Object.assign({},STRAVA_HISTORY,stravaRuns); },[stravaRuns]);
   var raceDate = new Date("2026-08-30");
   var today = new Date(); today.setHours(0,0,0,0);
-  var daysLeft = Math.ceil((raceDate - today) / 86400000);
-  var cycleDay = getDayInCycle(periods);
-  var phaseIdx = getPhaseIdx(cycleDay);
+  var daysLeft = Math.ceil((raceDate-today)/86400000);
+
+  var livePlan = useMemo(function(){ return buildLivePlan(timeOffWeeks,periods,cycleLen); },[timeOffWeeks,periods,cycleLen]);
+  var cycleDay = getDayInCycle(periods,cycleLen);
+  var phaseIdx = getPhaseIdx(cycleDay,cycleLen);
   var phase = CYCLE_PHASES[phaseIdx];
-  var nextPeriod = 28 - cycleDay;
-  var fertile = cycleDay >= 11 && cycleDay <= 17;
+  var nextPeriod = cycleLen-cycleDay;
+  var fertile = phaseIdx===2;
+  var ovDay = cycleLen-14;
+
   var allRunVals = Object.values(allRuns);
-  var totalKm = allRunVals.reduce(function(s,r){ return s+(r.km||0); }, 0);
+  var totalKm = allRunVals.reduce(function(s,r){ return s+(r.km||0); },0);
   var paces = allRunVals.map(function(r){ return paceToMin(r.pace); }).filter(Boolean);
-  var avgP = paces.length > 0 ? paces.reduce(function(s,p){ return s+p; },0)/paces.length : 6.2;
+  var avgP = paces.length>0?paces.reduce(function(s,p){ return s+p; },0)/paces.length:6.2;
   var avgPStr = Math.floor(avgP)+":"+(Math.round((avgP%1)*60)).toString().padStart(2,"0");
+
   var totalPlanned = COMPLETED_WEEKS.reduce(function(s,w){ return s+w.planned; },0);
   var totalActual = COMPLETED_WEEKS.reduce(function(s,w){ return s+w.actual; },0);
-  var athleteId = auth && auth.athlete ? auth.athlete.id || "bonnie_default" : null;
+  var athleteId = auth&&auth.athlete?auth.athlete.id||"bonnie_default":null;
 
-  var saveCloud = useCallback(async function(data) {
-    if (!athleteId) return;
-    try {
-      await fetch("/api/data?athlete_id="+athleteId, { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(data) });
-    } catch(e) {}
-  }, [athleteId]);
+  var assessment = useMemo(function(){ return assessGoal(allRuns,COMPLETED_WEEKS,sessions,livePlan); },[allRuns,sessions,livePlan]);
 
-  useEffect(function() {
-    var p = new URLSearchParams(window.location.search);
-    var ap = p.get("auth");
-    if (ap) {
-      try {
-        var a = JSON.parse(decodeURIComponent(ap));
-        localStorage.setItem("bonnie_auth", JSON.stringify(a));
-        setAuth(a);
-        window.history.replaceState({},"","/");
+  // Find current and next week dynamically
+  var currentWeekIdx = useMemo(function(){
+    var todayStr = today.toISOString().substring(0,10);
+    var idx = livePlan.findIndex(function(w,i){
+      var next = livePlan[i+1];
+      return w.startDate <= todayStr && (!next || next.startDate > todayStr);
+    });
+    return idx >= 0 ? idx : 0;
+  },[livePlan, today]);
+  var currentWeek = livePlan[currentWeekIdx];
+
+  var saveCloud = useCallback(async function(data){
+    if(!athleteId) return;
+    try{ await fetch("/api/data?athlete_id="+athleteId,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)}); }catch(e){}
+  },[athleteId]);
+
+  useEffect(function(){
+    var p=new URLSearchParams(window.location.search);
+    var ap=p.get("auth");
+    if(ap){
+      try{
+        var a=JSON.parse(decodeURIComponent(ap));
+        localStorage.setItem("bonnie_auth",JSON.stringify(a));
+        setAuth(a); window.history.replaceState({},"","/");
         showToast("Syncing your runs...");
         doSync(a);
-        if (a.athlete && a.athlete.id) {
+        if(a.athlete&&a.athlete.id){
           fetch("/api/data?athlete_id="+a.athlete.id).then(function(r){ return r.json(); }).then(function(j){
-            if (j.data) {
-              if (j.data.periods) setPeriods(j.data.periods);
-              if (j.data.sessions) setSessions(j.data.sessions);
+            if(j.data){ if(j.data.periods) setPeriods(j.data.periods); if(j.data.sessions) setSessions(j.data.sessions);
+              if(j.data.closedWeeks) setClosedWeeks(j.data.closedWeeks);
+              if(j.data.cycleLen) setCycleLen(j.data.cycleLen);
+              if(j.data.timeOffWeeks) setTimeOffWeeks(j.data.timeOffWeeks);
             }
           }).catch(function(){});
         }
-      } catch(e) {}
+      }catch(e){}
     } else {
-      try {
-        var sa = localStorage.getItem("bonnie_auth");
-        if (sa) { var a2=JSON.parse(sa); setAuth(a2); doSync(a2);
-          if (a2.athlete && a2.athlete.id) {
+      try{
+        var sa=localStorage.getItem("bonnie_auth");
+        if(sa){ var a2=JSON.parse(sa); setAuth(a2); doSync(a2);
+          if(a2.athlete&&a2.athlete.id){
             fetch("/api/data?athlete_id="+a2.athlete.id).then(function(r){ return r.json(); }).then(function(j){
-              if (j.data) { if(j.data.periods) setPeriods(j.data.periods); if(j.data.sessions) setSessions(j.data.sessions); }
+              if(j.data){ if(j.data.periods) setPeriods(j.data.periods); if(j.data.sessions) setSessions(j.data.sessions);
+                if(j.data.closedWeeks) setClosedWeeks(j.data.closedWeeks);
+                if(j.data.cycleLen) setCycleLen(j.data.cycleLen);
+                if(j.data.timeOffWeeks) setTimeOffWeeks(j.data.timeOffWeeks);
+              }
             }).catch(function(){});
           }
         }
-        var sr = localStorage.getItem("bonnie_strava_runs"); if (sr) setStravaRuns(JSON.parse(sr));
-        var ss = localStorage.getItem("bonnie_sessions"); if (ss) setSessions(JSON.parse(ss));
-        var pp = localStorage.getItem("bonnie_periods"); if (pp) setPeriods(JSON.parse(pp));
-      } catch(e) {}
+        var sr=localStorage.getItem("bonnie_strava_runs"); if(sr) setStravaRuns(JSON.parse(sr));
+        var ss=localStorage.getItem("bonnie_sessions"); if(ss) setSessions(JSON.parse(ss));
+        var pp=localStorage.getItem("bonnie_periods"); if(pp) setPeriods(JSON.parse(pp));
+        var cl=localStorage.getItem("bonnie_cycleLen"); if(cl) setCycleLen(parseInt(cl));
+        var to=localStorage.getItem("bonnie_timeoff"); if(to) setTimeOffWeeks(JSON.parse(to));
+        var cw=localStorage.getItem("bonnie_closedWeeks"); if(cw) setClosedWeeks(JSON.parse(cw));
+      }catch(e){}
     }
-  }, []);
+  },[]);
 
-  var doSync = async function(a) {
+  var doSync = async function(a){
     setSyncing(true);
-    try {
-      var mkP = function(pg, tok) { return new URLSearchParams({path:"/api/v3/athlete/activities?per_page=100&page="+pg,access_token:tok.access_token,refresh_token:tok.refresh_token,expires_at:tok.expires_at}).toString(); };
-      var r1 = await fetch("/api/strava-api?"+mkP(1,a)); var j1 = await r1.json();
-      if (j1.newTokenData) { var na=Object.assign({},a,j1.newTokenData); localStorage.setItem("bonnie_auth",JSON.stringify(na)); setAuth(na); a=na; }
-      var r2 = await fetch("/api/strava-api?"+mkP(2,a)); var j2 = await r2.json();
-      var all = (j1.data||[]).concat(j2.data||[]);
-      var runs = parseStravaActivities(all);
-      var filtered = {};
+    try{
+      var mkP=function(pg,tok){ return new URLSearchParams({path:"/api/v3/athlete/activities?per_page=100&page="+pg,access_token:tok.access_token,refresh_token:tok.refresh_token,expires_at:tok.expires_at}).toString(); };
+      var r1=await fetch("/api/strava-api?"+mkP(1,a)); var j1=await r1.json();
+      if(j1.newTokenData){ var na=Object.assign({},a,j1.newTokenData); localStorage.setItem("bonnie_auth",JSON.stringify(na)); setAuth(na); a=na; }
+      var r2=await fetch("/api/strava-api?"+mkP(2,a)); var j2=await r2.json();
+      var all=(j1.data||[]).concat(j2.data||[]);
+      var runs=parseStravaActivities(all);
+      var filtered={};
       Object.keys(runs).forEach(function(k){ if(k>="2025-12-01") filtered[k]=runs[k]; });
       setStravaRuns(filtered);
-      localStorage.setItem("bonnie_strava_runs", JSON.stringify(filtered));
-      showToast(Object.keys(filtered).length + " runs synced!");
-    } catch(e) { showToast("Sync failed"); }
+      localStorage.setItem("bonnie_strava_runs",JSON.stringify(filtered));
+      showToast(Object.keys(filtered).length+" runs synced!");
+    }catch(e){ showToast("Sync failed"); }
     setSyncing(false);
   };
 
-  var toggleSession = function(wk, si) {
-    var k=wk+"_"+si, u=Object.assign({},sessions); u[k]=!u[k];
-    setSessions(u); localStorage.setItem("bonnie_sessions",JSON.stringify(u));
-    saveCloud({ periods:periods, sessions:u });
+  var saveAll = function(upd){
+    var merged=Object.assign({periods,sessions,closedWeeks,cycleLen,timeOffWeeks},upd);
+    localStorage.setItem("bonnie_sessions",JSON.stringify(merged.sessions));
+    localStorage.setItem("bonnie_periods",JSON.stringify(merged.periods));
+    localStorage.setItem("bonnie_cycleLen",String(merged.cycleLen));
+    localStorage.setItem("bonnie_timeoff",JSON.stringify(merged.timeOffWeeks));
+    localStorage.setItem("bonnie_closedWeeks",JSON.stringify(merged.closedWeeks));
+    saveCloud(merged);
   };
 
-  var savePeriod = function() {
-    if (!newStart) { showToast("Enter a start date"); return; }
-    var updated = periods.filter(function(p){ return p.start!==newStart; });
+  var toggleSession = function(wk,si){
+    var k=wk+"_"+si, u=Object.assign({},sessions); u[k]=!u[k];
+    setSessions(u); saveAll({sessions:u});
+  };
+
+  var closeWeek = function(wkName){
+    var u=Object.assign({},closedWeeks); u[wkName]=true;
+    setClosedWeeks(u); saveAll({closedWeeks:u});
+    showToast("Week closed! Moving to next week.");
+  };
+
+  var savePeriod = function(){
+    if(!newStart){ showToast("Enter a start date"); return; }
+    var updated=periods.filter(function(p){ return p.start!==newStart; });
     updated.push({ start:newStart, end:newEnd||newStart });
     updated.sort(function(a,b){ return new Date(a.start)-new Date(b.start); });
-    setPeriods(updated); localStorage.setItem("bonnie_periods",JSON.stringify(updated));
-    saveCloud({ periods:updated, sessions:sessions });
+    setPeriods(updated); saveAll({periods:updated});
     setNewStart(""); setNewEnd(""); showToast("Period logged! Plan updated.");
   };
 
-  var card = { background:"#fff", borderRadius:18, padding:"14px", marginBottom:10, border:"1px solid "+P.border, boxShadow:"0 3px 12px rgba(67,97,238,0.06)" };
-  var nav = [["dashboard","🏠","Home"],["plan","📋","Plan"],["strava","🟠","Strava"],["cycle","🌸","Cycle"]];
+  var addTimeOff = function(){
+    if(!newTOWeek){ showToast("Select a week"); return; }
+    var updated=timeOffWeeks.filter(function(t){ return t.week!==newTOWeek; });
+    updated.push({ week:newTOWeek, pct:newTOPct });
+    setTimeOffWeeks(updated); saveAll({timeOffWeeks:updated});
+    setTimeOffModal(false); showToast("Time off added — plan adjusted!");
+  };
 
-  // Find current week (Week 16 = current)
-  var currentWeek = PLAN_WEEKS[1];
+  var removeTimeOff = function(wk){
+    var updated=timeOffWeeks.filter(function(t){ return t.week!==wk; });
+    setTimeOffWeeks(updated); saveAll({timeOffWeeks:updated});
+  };
+
+  var card={ background:"#fff",borderRadius:18,padding:"14px",marginBottom:10,border:"1px solid "+P.border,boxShadow:"0 3px 12px rgba(67,97,238,0.06)" };
+  var nav=[["dashboard","🏠","Home"],["plan","📋","Plan"],["strava","🟠","Strava"],["cycle","🌸","Cycle"]];
 
   return (
-    <div style={{ fontFamily:"'Segoe UI',system-ui,sans-serif", background:P.bg, minHeight:"100vh", paddingBottom:86 }}>
+    <div style={{fontFamily:"'Segoe UI',system-ui,sans-serif",background:P.bg,minHeight:"100vh",paddingBottom:86}}>
 
-      <div style={{ background:"linear-gradient(135deg,"+P.electric+","+P.violet+")", padding:"16px 16px 14px", color:"#fff", position:"sticky", top:0, zIndex:50, boxShadow:"0 4px 20px rgba(67,97,238,0.25)" }}>
-        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+      {/* Header */}
+      <div style={{background:"linear-gradient(135deg,"+P.electric+","+P.violet+")",padding:"16px 16px 14px",color:"#fff",position:"sticky",top:0,zIndex:50,boxShadow:"0 4px 20px rgba(67,97,238,0.25)"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
           <div>
-            <div style={{ fontSize:19, fontWeight:900 }}>Bonnie's Marathon</div>
-            <div style={{ fontSize:10, opacity:0.8 }}>Sydney 30 Aug 2026 · Sub 4:00</div>
+            <div style={{fontSize:19,fontWeight:900}}>Bonnie's Marathon</div>
+            <div style={{fontSize:10,opacity:0.8}}>Sydney 30 Aug 2026 · Sub 4:00 · Goal 5:41/km</div>
           </div>
-          <div style={{ textAlign:"right", background:"rgba(255,255,255,0.15)", borderRadius:14, padding:"6px 12px" }}>
-            <div style={{ fontSize:26, fontWeight:900, lineHeight:1 }}>{daysLeft}</div>
-            <div style={{ fontSize:9, opacity:0.8 }}>days to go</div>
+          <div style={{textAlign:"right",background:"rgba(255,255,255,0.15)",borderRadius:14,padding:"6px 12px"}}>
+            <div style={{fontSize:26,fontWeight:900,lineHeight:1}}>{daysLeft}</div>
+            <div style={{fontSize:9,opacity:0.8}}>days to go</div>
           </div>
         </div>
       </div>
 
-      {toast && <div style={{ background:P.teal, color:"#fff", padding:"9px 16px", textAlign:"center", fontSize:12, fontWeight:700 }}>{toast}</div>}
+      {toast&&<div style={{background:P.teal,color:"#fff",padding:"9px 16px",textAlign:"center",fontSize:12,fontWeight:700}}>{toast}</div>}
 
-      <div style={{ padding:"12px 14px" }}>
+      <div style={{padding:"12px 14px"}}>
 
-        {tab==="dashboard" && <div className="fade-in">
+        {/* ── DASHBOARD ── */}
+        {tab==="dashboard"&&<div className="fade-in">
 
-          {/* Stats */}
-          <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:6, marginBottom:10 }}>
-            {[[P.electric,Object.keys(allRuns).length,"runs"],[P.teal,Math.round(totalKm)+"km","total"],[P.orange,avgPStr,"avg pace"],[P.violet,"5:41","goal"]].map(function(x){
+          {/* Goal assessment banner */}
+          <div style={{...card,border:"2px solid "+assessment.color+"50",background:assessment.color+"08",padding:"14px"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:6}}>
+              <div style={{fontSize:14,fontWeight:900,color:assessment.color}}>{assessment.status}</div>
+              <div style={{fontSize:10,fontWeight:700,color:assessment.weekColor,background:assessment.weekColor+"18",borderRadius:8,padding:"2px 8px"}}>{assessment.weekStatus}</div>
+            </div>
+            <div style={{fontSize:11,color:P.textMid,lineHeight:1.6,marginBottom:6}}>{assessment.message}</div>
+            <div style={{fontSize:11,fontWeight:700,color:assessment.color}}>💡 {assessment.tip}</div>
+          </div>
+
+          {/* Stats strip */}
+          <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6,marginBottom:10}}>
+            {[[P.electric,Object.keys(allRuns).length,"runs"],[P.teal,Math.round(totalKm)+"km","all time"],[P.orange,avgPStr,"avg pace"],[P.violet,"5:41","goal"]].map(function(x){
               return <div key={x[2]} style={{background:"#fff",borderRadius:12,padding:"10px 4px",textAlign:"center",border:"1px solid "+P.border}}>
                 <div style={{fontSize:15,fontWeight:900,color:x[0]}}>{x[1]}</div>
                 <div style={{fontSize:9,color:P.textSoft,marginTop:1}}>{x[2]}</div>
@@ -413,100 +574,193 @@ function App() {
 
           {/* Pace card */}
           <div style={{...card,border:"1.5px solid "+P.electric+"30"}}>
-            <div style={{fontSize:10,fontWeight:800,color:P.textSoft,textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>Pace vs Goal (Sub 4:00)</div>
+            <div style={{fontSize:10,fontWeight:800,color:P.textSoft,textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>Pace vs Goal (Sub 4:00 = 5:41/km)</div>
             <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}>
               <div><div style={{fontSize:9,color:P.textSoft}}>Your avg</div><div style={{fontSize:22,fontWeight:900,color:P.orange}}>{avgPStr}<span style={{fontSize:10,color:P.textSoft}}>/km</span></div></div>
               <div style={{textAlign:"right"}}><div style={{fontSize:9,color:P.textSoft}}>Goal</div><div style={{fontSize:22,fontWeight:900,color:P.teal}}>5:41<span style={{fontSize:10,color:P.textSoft}}>/km</span></div></div>
             </div>
-            <div style={{height:8,background:P.border,borderRadius:4,overflow:"hidden",marginBottom:5}}>
-              <div style={{height:"100%",width:"58%",background:"linear-gradient(90deg,"+P.electric+","+P.orange+")",borderRadius:4}}/>
+            <div style={{height:8,background:P.border,borderRadius:4,overflow:"hidden",marginBottom:6}}>
+              <div style={{height:"100%",width:"60%",background:"linear-gradient(90deg,"+P.electric+","+P.orange+")",borderRadius:4}}/>
             </div>
-            <div style={{fontSize:10,color:P.textMid}}>Need to improve <strong style={{color:P.orange}}>~29 sec/km</strong> to hit sub 4:00 💪</div>
+            <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+              <div style={{fontSize:10,background:P.electric+"10",borderRadius:8,padding:"3px 8px",color:P.electric,fontWeight:600}}>Easy: 6:30–7:00/km</div>
+              <div style={{fontSize:10,background:P.orange+"10",borderRadius:8,padding:"3px 8px",color:P.orange,fontWeight:600}}>Tempo: 5:50–6:10/km</div>
+              <div style={{fontSize:10,background:P.teal+"10",borderRadius:8,padding:"3px 8px",color:P.teal,fontWeight:600}}>Long: 6:20–6:50/km</div>
+            </div>
           </div>
 
           {/* Progress chart */}
           <div style={card}>
-            <div style={{fontSize:10,fontWeight:800,color:P.textSoft,textTransform:"uppercase",letterSpacing:1,marginBottom:6}}>Km Progress · Weeks 1-14</div>
-            <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}>
-              <div><div style={{fontSize:9,color:P.textSoft}}>Actual</div><div style={{fontSize:20,fontWeight:900,color:P.teal}}>{totalActual.toFixed(1)}km</div></div>
-              <div style={{textAlign:"right"}}><div style={{fontSize:9,color:P.textSoft}}>Planned</div><div style={{fontSize:20,fontWeight:900,color:P.electric}}>{totalPlanned}km</div></div>
+            <div style={{fontSize:10,fontWeight:800,color:P.textSoft,textTransform:"uppercase",letterSpacing:1,marginBottom:6}}>Km Progress · Weeks 1–14 + This Week</div>
+            <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}>
+              <div>
+                <div style={{fontSize:9,color:P.textSoft}}>Historical actual</div>
+                <div style={{fontSize:18,fontWeight:900,color:P.teal}}>{totalActual.toFixed(1)}km</div>
+                <div style={{fontSize:9,color:P.textSoft}}>vs {totalPlanned}km planned</div>
+              </div>
+              <div style={{textAlign:"right"}}>
+                <div style={{fontSize:9,color:P.textSoft}}>All time total</div>
+                <div style={{fontSize:18,fontWeight:900,color:P.electric}}>{Math.round(totalKm)}km</div>
+                <div style={{fontSize:9,color:P.textSoft}}>inc Strava runs</div>
+              </div>
             </div>
             <div style={{height:6,background:P.border,borderRadius:3,overflow:"hidden",marginBottom:8}}>
               <div style={{height:"100%",width:Math.min(100,totalActual/totalPlanned*100).toFixed(0)+"%",background:"linear-gradient(90deg,"+P.teal+","+P.electric+")",borderRadius:3}}/>
             </div>
-            <BarChart data={COMPLETED_WEEKS}/>
-            <div style={{display:"flex",gap:12,marginTop:6}}>
+            <BarChart pastData={COMPLETED_WEEKS} liveWeek={currentWeek} sessions={sessions}/>
+            <div style={{display:"flex",gap:10,marginTop:6}}>
               <div style={{display:"flex",alignItems:"center",gap:4,fontSize:9,color:P.textSoft}}><div style={{width:8,height:8,background:P.electric+"40",borderRadius:2}}/>Planned</div>
               <div style={{display:"flex",alignItems:"center",gap:4,fontSize:9,color:P.textSoft}}><div style={{width:8,height:8,background:P.teal,borderRadius:2}}/>Actual</div>
+              <div style={{display:"flex",alignItems:"center",gap:4,fontSize:9,color:P.textSoft}}><div style={{width:8,height:8,border:"1px dashed "+P.electric,borderRadius:2}}/>Current</div>
             </div>
           </div>
 
-          {/* This week */}
-          <div style={{...card,border:"1.5px solid "+P.electric+"30"}}>
-            <div style={{fontSize:10,fontWeight:800,color:P.textSoft,textTransform:"uppercase",letterSpacing:1,marginBottom:10}}>This Week</div>
-            <WeekTracker wk={currentWeek} sessions={sessions} onToggle={toggleSession}/>
-          </div>
+          {/* This week checklist */}
+          {currentWeek&&(
+            <div style={{...card,border:"1.5px solid "+P.electric+"30"}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+                <div style={{fontSize:10,fontWeight:800,color:P.textSoft,textTransform:"uppercase",letterSpacing:1}}>This Week · {currentWeek.week}</div>
+                <div style={{fontSize:11,color:P.electric,fontWeight:700}}>{assessment.weekDone}/{assessment.weekTotal} done</div>
+              </div>
+              <div style={{height:5,background:P.border,borderRadius:3,overflow:"hidden",marginBottom:10}}>
+                <div style={{height:"100%",width:(assessment.weekTotal>0?assessment.weekDone/assessment.weekTotal*100:0)+"%",background:"linear-gradient(90deg,"+P.electric+","+P.teal+")",borderRadius:3,transition:"width 0.4s"}}/>
+              </div>
+              {currentWeek.sessions.map(function(s,i){
+                return <SessionItem key={i} session={s} done={!!sessions[currentWeek.week+"_"+i]} onToggle={function(){ toggleSession(currentWeek.week,i); }} showPace={true}/>;
+              })}
+              {assessment.weekDone===assessment.weekTotal&&assessment.weekTotal>0&&(
+                <button onClick={function(){ closeWeek(currentWeek.week); }}
+                  style={{marginTop:10,width:"100%",background:"linear-gradient(90deg,"+P.teal+","+P.electric+")",border:"none",color:"#fff",borderRadius:12,padding:"10px",fontSize:12,fontWeight:800,cursor:"pointer"}}>
+                  Close Week & Move to Next ✓
+                </button>
+              )}
+            </div>
+          )}
 
-          {/* Upcoming */}
+          {/* Upcoming weeks */}
           <div style={card}>
             <div style={{fontSize:10,fontWeight:800,color:P.textSoft,textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>Upcoming Weeks</div>
-            {PLAN_WEEKS.slice(1,4).map(function(wk) {
-              var ci = getWeekPhase(wk.dates, periods);
-              var ph2 = ci ? CYCLE_PHASES[ci.phaseIdx] : null;
+            {livePlan.slice(currentWeekIdx+1,currentWeekIdx+4).map(function(wk){
               return <div key={wk.week} style={{padding:"8px 0",borderBottom:"1px solid "+P.border}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                   <div>
-                    <div style={{fontWeight:700,fontSize:12}}>{wk.week} <span style={{fontWeight:400,color:P.textSoft,fontSize:11}}>{wk.dates}</span></div>
-                    <div style={{fontSize:10,color:P.textSoft}}>{wk.target}km target</div>
+                    <div style={{fontWeight:700,fontSize:12}}>{wk.week} <span style={{fontWeight:400,color:P.textSoft,fontSize:11}}>{wk.startDate}</span></div>
+                    <div style={{fontSize:10,color:P.textSoft}}>{wk.adjustedTarget}km target{wk.note?" · "+wk.note:""}</div>
                   </div>
-                  {ph2 && <div style={{fontSize:10,fontWeight:700,color:ph2.color,background:ph2.color+"18",padding:"2px 8px",borderRadius:8}}>{ph2.emoji} {ph2.phase}</div>}
+                  {wk.phase&&<div style={{fontSize:10,fontWeight:700,color:wk.phase.color,background:wk.phase.color+"18",padding:"2px 8px",borderRadius:8}}>{wk.phase.emoji}</div>}
                 </div>
               </div>;
             })}
           </div>
 
-          {/* Recent runs */}
-          <div style={card}>
-            <div style={{fontSize:10,fontWeight:800,color:P.textSoft,textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>Recent Runs</div>
-            {Object.entries(allRuns).sort(function(a,b){ return b[0].localeCompare(a[0]); }).slice(0,4).map(function(entry) {
-              var date=entry[0], run=entry[1];
-              return <div key={date} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:"1px solid "+P.border}}>
-                <div style={{display:"flex",alignItems:"center",gap:10}}>
-                  <div style={{width:36,height:36,borderRadius:10,background:"linear-gradient(135deg,#FC4C02,#FF8C00)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>🟠</div>
-                  <div>
-                    <div style={{fontWeight:700,fontSize:13}}>{(run.km||0).toFixed(1)}km</div>
-                    <div style={{fontSize:10,color:P.textSoft}}>{date.substring(0,10)}{run.pace?" · "+run.pace+"/km":""}</div>
-                  </div>
-                </div>
-                <div style={{fontSize:11,color:P.textSoft}}>{run.duration||""}</div>
-              </div>;
-            })}
-          </div>
-
-          {/* Cycle today */}
+          {/* Cycle strip */}
           <div style={{...card,border:"1.5px solid "+phase.color+"40",background:phase.color+"06"}}>
-            <div style={{fontSize:10,color:P.textSoft,marginBottom:2}}>Today · Cycle day {cycleDay}</div>
-            <div style={{fontSize:16,fontWeight:900,color:phase.color,marginBottom:4}}>{phase.emoji} {phase.phase}</div>
+            <div style={{fontSize:10,color:P.textSoft,marginBottom:2}}>Today · Day {cycleDay} of {cycleLen}</div>
+            <div style={{fontSize:15,fontWeight:900,color:phase.color,marginBottom:4}}>{phase.emoji} {phase.phase}</div>
             <div style={{fontSize:11,color:P.textMid,marginBottom:6}}>{phase.training}</div>
             <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-              {nextPeriod > 0 && <div style={{fontSize:10,background:P.coral+"15",color:P.coral,borderRadius:8,padding:"3px 8px",fontWeight:700}}>Period in ~{nextPeriod} days</div>}
-              {fertile && <div style={{fontSize:10,background:P.orange+"15",color:P.orange,borderRadius:8,padding:"3px 8px",fontWeight:700}}>Fertile window now</div>}
+              {nextPeriod>0&&<div style={{fontSize:10,background:P.coral+"15",color:P.coral,borderRadius:8,padding:"3px 8px",fontWeight:700}}>Period in ~{nextPeriod} days</div>}
+              {fertile&&<div style={{fontSize:10,background:P.orange+"15",color:P.orange,borderRadius:8,padding:"3px 8px",fontWeight:700}}>Fertile window now</div>}
+              {!fertile&&cycleDay<ovDay&&<div style={{fontSize:10,background:P.teal+"15",color:P.teal,borderRadius:8,padding:"3px 8px",fontWeight:700}}>Ovulation ~{ovDay-cycleDay} days</div>}
             </div>
           </div>
 
-          {!auth && <div style={{...card,border:"1.5px solid #FC4C0240",background:"#FC4C0208"}}>
+          {!auth&&<div style={{...card,border:"1.5px solid #FC4C0240",background:"#FC4C0208"}}>
             <div style={{fontWeight:800,color:"#FC4C02",marginBottom:6,fontSize:13}}>Connect Strava to sync runs automatically</div>
             <button onClick={function(){ window.location.href="/api/strava-login"; }}
-              style={{background:"#FC4C02",border:"none",color:"#fff",borderRadius:12,padding:"10px 18px",fontSize:12,fontWeight:800,cursor:"pointer",width:"100%"}}>
+              style={{background:"#FC4C02",border:"none",color:"#fff",borderRadius:12,padding:"10px",fontSize:12,fontWeight:800,cursor:"pointer",width:"100%"}}>
               Connect Strava
             </button>
           </div>}
         </div>}
 
-        {tab==="strava" && <div className="fade-in">
+        {/* ── PLAN TAB ── */}
+        {tab==="plan"&&<div className="fade-in">
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+            <div>
+              <div style={{fontWeight:900,fontSize:18}}>Training Plan</div>
+              <div style={{fontSize:11,color:P.textSoft}}>Goal 5:41/km · Tap pace badge for details</div>
+            </div>
+            <button onClick={function(){ setTimeOffModal(true); }}
+              style={{background:P.violet,border:"none",color:"#fff",borderRadius:12,padding:"8px 12px",fontSize:11,fontWeight:800,cursor:"pointer"}}>
+              + Time Off
+            </button>
+          </div>
+
+          {timeOffWeeks.length>0&&(
+            <div style={{...card,background:P.violet+"08",border:"1px solid "+P.violet+"30"}}>
+              <div style={{fontSize:11,fontWeight:800,color:P.violet,marginBottom:6}}>Time off scheduled</div>
+              {timeOffWeeks.map(function(t){
+                return <div key={t.week} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"4px 0",fontSize:11}}>
+                  <span style={{color:P.textMid}}>{t.week} — {t.pct}% capacity</span>
+                  <button onClick={function(){ removeTimeOff(t.week); }} style={{background:"none",border:"none",color:P.textSoft,cursor:"pointer",fontSize:16}}>✕</button>
+                </div>;
+              })}
+            </div>
+          )}
+
+          {periods.length>0&&<div style={{fontSize:11,color:P.violet,fontWeight:700,marginBottom:8}}>Cycle-synced · plan adapts to your {cycleLen}-day cycle</div>}
+
+          {livePlan.map(function(wk,wkIdx){
+            if(closedWeeks[wk.week]&&wkIdx<currentWeekIdx) return null;
+            var isExp=expanded===wk.week;
+            var done=wk.sessions.filter(function(_,si){ return sessions[wk.week+"_"+si]; }).length;
+            var isCurrent=wk.week===currentWeek.week;
+            var accent=wk.phase?wk.phase.color:isCurrent?P.electric:P.textMid;
+            var isPeak=wk.week==="Week 32";
+            return <div key={wk.week} style={{background:"#fff",borderRadius:16,marginBottom:8,border:"1.5px solid "+(isCurrent?P.electric+"50":wk.isTimeOff?P.violet+"30":P.border),overflow:"hidden",opacity:closedWeeks[wk.week]?0.5:1}}>
+              <div style={{height:3,background:"linear-gradient(90deg,"+accent+","+accent+"55)"}}/>
+              <div onClick={function(){ setExpanded(isExp?null:wk.week); }} style={{padding:"11px 13px",cursor:"pointer",display:"flex",alignItems:"center",gap:8}}>
+                <div style={{flex:1}}>
+                  <div style={{display:"flex",alignItems:"center",gap:5,flexWrap:"wrap",marginBottom:2}}>
+                    <span style={{fontWeight:800,fontSize:13}}>{wk.week}</span>
+                    {isCurrent&&<span style={{fontSize:9,background:P.electric+"20",color:P.electric,borderRadius:6,padding:"1px 6px",fontWeight:800}}>NOW</span>}
+                    {isPeak&&<span style={{fontSize:9,background:P.yellow+"40",color:"#996600",borderRadius:6,padding:"1px 6px",fontWeight:700}}>PEAK</span>}
+                    {wk.isTimeOff&&<span style={{fontSize:9,background:P.violet+"20",color:P.violet,borderRadius:6,padding:"1px 6px",fontWeight:700}}>Holiday</span>}
+                    {wk.phase&&<span style={{fontSize:9,background:wk.phase.color+"20",color:wk.phase.color,borderRadius:6,padding:"1px 6px",fontWeight:700}}>{wk.phase.emoji}</span>}
+                  </div>
+                  <div style={{fontSize:10,color:P.textSoft}}>{wk.startDate} · {wk.adjustedTarget}km{wk.adjustedTarget!==wk.target?" (was "+wk.target+"km)":""} · {done}/{wk.sessions.length} done</div>
+                  {wk.note&&<div style={{fontSize:10,color:accent,fontWeight:700}}>{wk.note}</div>}
+                </div>
+                <div style={{minWidth:32,textAlign:"right"}}>
+                  <div style={{fontSize:11,fontWeight:800,color:accent}}>{done}/{wk.sessions.length}</div>
+                  <div style={{width:32,height:4,background:accent+"20",borderRadius:2,marginTop:3}}>
+                    <div style={{width:(done/wk.sessions.length*100)+"%",height:"100%",background:accent,borderRadius:2}}/>
+                  </div>
+                </div>
+                <div style={{fontSize:12,color:P.textSoft}}>{isExp?"▲":"▼"}</div>
+              </div>
+              {isExp&&<div style={{padding:"0 13px 12px",borderTop:"1px solid "+P.border}}>
+                {wk.phase&&<div style={{background:wk.phase.color+"12",borderRadius:10,padding:"7px 10px",marginBottom:8,fontSize:11,color:wk.phase.color,fontWeight:700}}>
+                  {wk.phase.emoji} {wk.phase.phase} · {wk.phase.training}
+                </div>}
+                {/* Pace guide for this week */}
+                <div style={{background:P.electric+"08",borderRadius:10,padding:"7px 10px",marginBottom:8,fontSize:10}}>
+                  <div style={{fontWeight:800,color:P.electric,marginBottom:4}}>Target paces this week</div>
+                  <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                    {[["🐣 Easy","6:30–7:00",P.teal],["🔥 Tempo","5:50–6:10",P.orange],["🌟 Long","6:20–6:50",P.electric],["🏁 Race","5:38–5:44",P.violet]].map(function(x){
+                      return <div key={x[0]} style={{fontSize:9,fontWeight:700,color:x[2]}}>{x[0]}: <strong>{x[1]}</strong>/km</div>;
+                    })}
+                  </div>
+                </div>
+                {wk.sessions.map(function(s,si){
+                  return <SessionItem key={si} session={s} done={!!sessions[wk.week+"_"+si]} onToggle={function(){ toggleSession(wk.week,si); }} showPace={true}/>;
+                })}
+                {isCurrent&&done===wk.sessions.length&&(
+                  <button onClick={function(){ closeWeek(wk.week); }}
+                    style={{marginTop:10,width:"100%",background:"linear-gradient(90deg,"+P.teal+","+P.electric+")",border:"none",color:"#fff",borderRadius:12,padding:"10px",fontSize:12,fontWeight:800,cursor:"pointer"}}>
+                    Close Week & Move to Next ✓
+                  </button>
+                )}
+              </div>}
+            </div>;
+          })}
+        </div>}
+
+        {/* ── STRAVA TAB ── */}
+        {tab==="strava"&&<div className="fade-in">
           <div style={{fontWeight:900,fontSize:18,marginBottom:4}}>Strava</div>
           <div style={{fontSize:11,color:P.textSoft,marginBottom:12}}>Your runs synced automatically</div>
-
           <div style={{background:"linear-gradient(135deg,#FC4C02,#FF8C00)",borderRadius:20,padding:"18px",marginBottom:12,color:"#fff"}}>
             <div style={{fontSize:16,fontWeight:900,marginBottom:4}}>{auth?"Connected":"Not connected"}</div>
             <div style={{fontSize:11,opacity:0.85,marginBottom:12}}>{auth?Object.keys(stravaRuns).length+" live + "+Object.keys(STRAVA_HISTORY).length+" history":"Connect once, syncs every time"}</div>
@@ -515,13 +769,12 @@ function App() {
                 style={{background:"rgba(255,255,255,0.25)",border:"1.5px solid rgba(255,255,255,0.5)",borderRadius:12,padding:"9px 16px",color:"#fff",fontSize:12,fontWeight:800,cursor:"pointer"}}>
                 {syncing?"Syncing...":auth?"Sync Now":"Connect Strava"}
               </button>
-              {auth && <button onClick={function(){ localStorage.removeItem("bonnie_auth");localStorage.removeItem("bonnie_strava_runs");setAuth(null);setStravaRuns({}); }}
+              {auth&&<button onClick={function(){ localStorage.removeItem("bonnie_auth");localStorage.removeItem("bonnie_strava_runs");setAuth(null);setStravaRuns({}); }}
                 style={{background:"rgba(0,0,0,0.15)",border:"1.5px solid rgba(255,255,255,0.2)",borderRadius:12,padding:"9px 12px",color:"rgba(255,255,255,0.7)",fontSize:11,cursor:"pointer"}}>
                 Disconnect
               </button>}
             </div>
           </div>
-
           <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,marginBottom:10}}>
             {[[P.teal,Object.keys(allRuns).length,"runs"],[P.electric,Math.round(totalKm)+"km","total"],[P.orange,avgPStr,"avg pace"]].map(function(x){
               return <div key={x[2]} style={{background:"#fff",borderRadius:12,padding:"10px 6px",textAlign:"center",border:"1px solid "+P.border}}>
@@ -530,9 +783,10 @@ function App() {
               </div>;
             })}
           </div>
-
-          {Object.entries(allRuns).sort(function(a,b){ return b[0].localeCompare(a[0]); }).map(function(entry) {
-            var date=entry[0], run=entry[1];
+          {Object.entries(allRuns).sort(function(a,b){ return b[0].localeCompare(a[0]); }).map(function(entry){
+            var date=entry[0],run=entry[1];
+            var pMin=paceToMin(run.pace); var goalPMin=5.683;
+            var onTrack=pMin&&pMin<=goalPMin+0.5;
             return <div key={date} style={{...card,display:"flex",alignItems:"center",gap:12,padding:"11px 13px"}}>
               <div style={{width:38,height:38,borderRadius:11,background:"linear-gradient(135deg,#FC4C02,#FF8C00)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>🟠</div>
               <div style={{flex:1}}>
@@ -540,110 +794,62 @@ function App() {
                 <div style={{fontSize:10,color:P.textSoft}}>{date.substring(0,10)}{run.pace?" · "+run.pace+"/km":""}</div>
                 {run.notes&&<div style={{fontSize:10,color:"#FC4C02",fontWeight:700,marginTop:1}}>{run.notes}</div>}
               </div>
-              {run.duration&&<div style={{fontSize:11,color:P.textSoft}}>{run.duration}</div>}
-            </div>;
-          })}
-        </div>}
-
-        {tab==="plan" && <div className="fade-in">
-          <div style={{fontWeight:900,fontSize:18,marginBottom:2}}>Training Plan</div>
-          <div style={{fontSize:11,color:P.textSoft,marginBottom:periods.length>0?2:10}}>Weeks 15-40 · Goal 5:41/km pace</div>
-          {periods.length>0&&<div style={{fontSize:11,color:P.violet,fontWeight:700,marginBottom:10}}>Cycle-synced · plan adapts to your cycle</div>}
-          {PLAN_WEEKS.map(function(wk) {
-            var isExp=expanded===wk.week;
-            var done=wk.sessions.filter(function(_,si){ return sessions[wk.week+"_"+si]; }).length;
-            var ci=getWeekPhase(wk.dates,periods);
-            var ph2=ci?CYCLE_PHASES[ci.phaseIdx]:null;
-            var accent=ph2?ph2.color:P.electric;
-            var isPeak=wk.week==="Week 32";
-            return <div key={wk.week} style={{background:"#fff",borderRadius:16,marginBottom:8,border:"1px solid "+P.border,overflow:"hidden"}}>
-              <div style={{height:3,background:"linear-gradient(90deg,"+accent+","+accent+"55)"}}/>
-              <div onClick={function(){ setExpanded(isExp?null:wk.week); }} style={{padding:"11px 13px",cursor:"pointer",display:"flex",alignItems:"center",gap:8}}>
-                <div style={{flex:1}}>
-                  <div style={{display:"flex",alignItems:"center",gap:5,flexWrap:"wrap",marginBottom:2}}>
-                    <span style={{fontWeight:800,fontSize:13}}>{wk.week}</span>
-                    <span style={{fontWeight:400,color:P.textSoft,fontSize:11}}>{wk.dates}</span>
-                    {isPeak&&<span style={{fontSize:9,background:P.yellow+"30",color:"#AA8800",borderRadius:6,padding:"1px 6px",fontWeight:700}}>PEAK</span>}
-                    {ph2&&<span style={{fontSize:9,background:ph2.color+"20",color:ph2.color,borderRadius:6,padding:"1px 6px",fontWeight:700}}>{ph2.emoji}</span>}
-                  </div>
-                  <div style={{fontSize:10,color:P.textSoft,marginBottom:ph2?2:0}}>{wk.target}km · {done}/{wk.sessions.length} done</div>
-                  {ph2&&ci&&<div style={{fontSize:10,fontWeight:700,color:ph2.color}}>
-                    {ph2.mod==="REDUCE"?"🩸 Period week - reduce intensity":ph2.mod==="PEAK"?"🌺 Peak energy - push hard!":ph2.mod==="TAPER"?"🍂 Wind down approaching":"⭐ Good energy - build well"}
-                  </div>}
-                </div>
-                <div style={{textAlign:"right",minWidth:32}}>
-                  <div style={{fontSize:11,fontWeight:800,color:accent}}>{done}/{wk.sessions.length}</div>
-                  <div style={{width:32,height:4,background:accent+"20",borderRadius:2,marginTop:3}}>
-                    <div style={{width:(done/wk.sessions.length*100)+"%",height:"100%",background:accent,borderRadius:2,transition:"width 0.3s"}}/>
-                  </div>
-                </div>
-                <div style={{fontSize:12,color:P.textSoft}}>{isExp?"▲":"▼"}</div>
+              <div style={{textAlign:"right"}}>
+                {run.duration&&<div style={{fontSize:11,color:P.textSoft}}>{run.duration}</div>}
+                {run.pace&&<div style={{fontSize:9,fontWeight:700,color:onTrack?P.teal:P.orange}}>{onTrack?"On pace":"Build pace"}</div>}
               </div>
-              {isExp&&<div style={{padding:"0 13px 12px",borderTop:"1px solid "+P.border}}>
-                {ph2&&<div style={{background:ph2.color+"12",borderRadius:10,padding:"7px 10px",marginBottom:8,fontSize:11,color:ph2.color,fontWeight:700}}>
-                  {ph2.emoji} {ph2.phase} · {ph2.training}
-                </div>}
-                {wk.sessions.map(function(s,si) {
-                  var d=sessions[wk.week+"_"+si];
-                  var mod="";
-                  if (ph2) {
-                    if (ph2.mod==="REDUCE"&&(s.includes("Tempo")||s.includes("Long"))) mod=" ⚠️ consider reducing";
-                    if (ph2.mod==="PEAK"&&(s.includes("Long")||s.includes("Tempo"))) mod=" ⭐ peak window!";
-                    if (ph2.mod==="TAPER"&&(s.includes("Tempo")||s.includes("Long"))) mod=" 🍂 listen to body";
-                  }
-                  return <div key={si} onClick={function(){ toggleSession(wk.week,si); }}
-                    style={{display:"flex",alignItems:"center",gap:9,padding:"7px 0",borderBottom:"1px solid "+P.border,cursor:"pointer"}}>
-                    <div style={{width:21,height:21,borderRadius:"50%",border:"2px solid "+(d?P.teal:P.border),background:d?P.teal:"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-                      {d&&<span style={{color:"#fff",fontSize:11,fontWeight:900}}>✓</span>}
-                    </div>
-                    <span style={{fontSize:12,color:d?P.textSoft:P.textDark,textDecoration:d?"line-through":"none"}}>{s}{mod}</span>
-                  </div>;
-                })}
-              </div>}
             </div>;
           })}
         </div>}
 
-        {tab==="cycle" && <div className="fade-in">
+        {/* ── CYCLE TAB ── */}
+        {tab==="cycle"&&<div className="fade-in">
           <div style={{fontWeight:900,fontSize:18,marginBottom:2}}>Cycle Tracker</div>
-          <div style={{fontSize:11,color:P.textSoft,marginBottom:12}}>Your body, your training</div>
+          <div style={{fontSize:11,color:P.textSoft,marginBottom:10}}>Your body, your training</div>
+
+          {/* Cycle length setting */}
+          <div style={{...card,border:"1px solid "+P.violet+"30"}}>
+            <div style={{fontSize:12,fontWeight:800,marginBottom:8}}>Cycle length</div>
+            <div style={{display:"flex",alignItems:"center",gap:10}}>
+              <input type="number" min="21" max="40" value={cycleLen}
+                onChange={function(e){ var v=parseInt(e.target.value)||28; setCycleLen(v); saveAll({cycleLen:v}); }}
+                style={{width:70,padding:"8px 10px",borderRadius:10,border:"1.5px solid "+P.border,fontSize:16,fontWeight:800,textAlign:"center"}}/>
+              <div style={{fontSize:11,color:P.textMid}}>days<br/><span style={{color:P.textSoft}}>Your cycle is {cycleLen} days · next period in ~{nextPeriod} days</span></div>
+            </div>
+            <div style={{fontSize:10,color:P.textSoft,marginTop:6}}>Update anytime — your marathon plan adjusts automatically</div>
+          </div>
 
           {/* Phase hero */}
           <div style={{background:"linear-gradient(135deg,"+phase.color+","+phase.color+"BB)",borderRadius:22,padding:"18px",marginBottom:12,color:"#fff"}}>
-            <div style={{fontSize:10,opacity:0.8,marginBottom:4}}>Today · Day {cycleDay} of 28</div>
+            <div style={{fontSize:10,opacity:0.8,marginBottom:4}}>Today · Day {cycleDay} of {cycleLen}</div>
             <div style={{fontSize:22,fontWeight:900,marginBottom:4}}>{phase.emoji} {phase.phase}</div>
             <div style={{fontSize:11,opacity:0.9,lineHeight:1.6,marginBottom:10}}>{phase.training}</div>
             <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
               <div style={{background:"rgba(255,255,255,0.2)",borderRadius:10,padding:"3px 9px",fontSize:10,fontWeight:700}}>Period in ~{nextPeriod} days</div>
-              {cycleDay < 14 && <div style={{background:"rgba(255,255,255,0.2)",borderRadius:10,padding:"3px 9px",fontSize:10,fontWeight:700}}>Ovulation ~{14-cycleDay} days</div>}
-              {fertile && <div style={{background:"rgba(255,255,255,0.3)",borderRadius:10,padding:"3px 9px",fontSize:10,fontWeight:700}}>Fertile window now!</div>}
+              {!fertile&&cycleDay<ovDay&&<div style={{background:"rgba(255,255,255,0.2)",borderRadius:10,padding:"3px 9px",fontSize:10,fontWeight:700}}>Ovulation ~{ovDay-cycleDay} days</div>}
+              {fertile&&<div style={{background:"rgba(255,255,255,0.3)",borderRadius:10,padding:"3px 9px",fontSize:10,fontWeight:700}}>Fertile window now!</div>}
             </div>
           </div>
 
           {/* Cycle strip */}
           <div style={card}>
-            <div style={{fontSize:11,fontWeight:800,marginBottom:8}}>Where you are today</div>
-            <div style={{display:"flex",gap:1.5,marginBottom:6}}>
-              {Array.from({length:28},function(_,i){
-                var d=i+1, ph=CYCLE_PHASES[getPhaseIdx(d)], isTd=d===cycleDay;
-                return <div key={d} style={{flex:1,height:isTd?20:12,background:ph.color+(isTd?"":"55"),borderRadius:2,position:"relative",minWidth:0,transition:"height 0.2s"}}>
-                  {isTd&&<div style={{position:"absolute",bottom:"100%",left:"50%",transform:"translateX(-50%)",fontSize:8,color:ph.color,lineHeight:1}}>▼</div>}
+            <div style={{fontSize:11,fontWeight:800,marginBottom:8}}>Your cycle · Day {cycleDay} of {cycleLen}</div>
+            <div style={{display:"flex",gap:1,marginBottom:6}}>
+              {Array.from({length:cycleLen},function(_,i){
+                var d=i+1, ph=CYCLE_PHASES[getPhaseIdx(d,cycleLen)], isTd=d===cycleDay;
+                return <div key={d} style={{flex:1,height:isTd?20:12,background:ph.color+(isTd?"":"55"),borderRadius:2,position:"relative",minWidth:0}}>
+                  {isTd&&<div style={{position:"absolute",bottom:"100%",left:"50%",transform:"translateX(-50%)",fontSize:8,color:ph.color}}>▼</div>}
                 </div>;
               })}
             </div>
-            <div style={{display:"flex",gap:8,fontSize:9,color:P.textSoft}}>
-              {CYCLE_PHASES.map(function(ph){ return <span key={ph.phase} style={{color:ph.color,fontWeight:700}}>{ph.emoji} {ph.days}</span>; })}
+            <div style={{display:"flex",gap:8,fontSize:9,color:P.textSoft,flexWrap:"wrap"}}>
+              {CYCLE_PHASES.map(function(ph){ return <span key={ph.phase} style={{color:ph.color,fontWeight:700}}>{ph.emoji} {ph.phase}</span>; })}
             </div>
           </div>
 
           {/* Info grid */}
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10}}>
-            {[
-              {icon:"💧",title:"Discharge",body:phase.discharge,color:phase.color},
-              {icon:"🌡️",title:"Fertility",body:phase.fertility,color:fertile?P.orange:P.teal},
-              {icon:"🧠",title:"Mood & Energy",body:phase.mood,color:P.violet},
-              {icon:"🥗",title:"Nutrition",body:phase.nutrition,color:P.teal},
-            ].map(function(item){
+            {[{icon:"💧",title:"Discharge",body:phase.discharge,color:phase.color},{icon:"🌡️",title:"Fertility",body:phase.fertility,color:fertile?P.orange:P.teal},{icon:"🧠",title:"Mood",body:phase.mood,color:P.violet},{icon:"🥗",title:"Nutrition",body:phase.nutrition,color:P.teal}].map(function(item){
               return <div key={item.title} style={{background:"#fff",borderRadius:14,padding:"11px 10px",border:"1px solid "+P.border}}>
                 <div style={{fontSize:18,marginBottom:3}}>{item.icon}</div>
                 <div style={{fontSize:11,fontWeight:800,color:item.color,marginBottom:3}}>{item.title}</div>
@@ -667,12 +873,12 @@ function App() {
               <div style={{flex:1,minWidth:120}}>
                 <div style={{fontSize:10,color:P.textSoft,marginBottom:4}}>Start date</div>
                 <input type="date" value={newStart} onChange={function(e){ setNewStart(e.target.value); }}
-                  style={{width:"100%",padding:"8px 10px",borderRadius:10,border:"1.5px solid "+P.border,fontSize:13,fontFamily:"inherit"}}/>
+                  style={{width:"100%",padding:"8px 10px",borderRadius:10,border:"1.5px solid "+P.border,fontSize:13}}/>
               </div>
               <div style={{flex:1,minWidth:120}}>
                 <div style={{fontSize:10,color:P.textSoft,marginBottom:4}}>End date</div>
                 <input type="date" value={newEnd} onChange={function(e){ setNewEnd(e.target.value); }}
-                  style={{width:"100%",padding:"8px 10px",borderRadius:10,border:"1.5px solid "+P.border,fontSize:13,fontFamily:"inherit"}}/>
+                  style={{width:"100%",padding:"8px 10px",borderRadius:10,border:"1.5px solid "+P.border,fontSize:13}}/>
               </div>
             </div>
             <button onClick={savePeriod}
@@ -681,7 +887,7 @@ function App() {
             </button>
           </div>
 
-          {/* History */}
+          {/* Period history */}
           {periods.length>0&&<div style={card}>
             <div style={{fontWeight:800,fontSize:13,marginBottom:8}}>Period history</div>
             {periods.slice().reverse().map(function(p){
@@ -691,7 +897,7 @@ function App() {
                   <div style={{fontSize:12,fontWeight:700}}>{p.start}{p.end&&p.end!==p.start?" to "+p.end:""}</div>
                   <div style={{fontSize:10,color:P.textSoft}}>{len} day{len!==1?"s":""}</div>
                 </div>
-                <button onClick={function(){ var u=periods.filter(function(x){ return x.start!==p.start; }); setPeriods(u); localStorage.setItem("bonnie_periods",JSON.stringify(u)); saveCloud({periods:u,sessions:sessions}); }}
+                <button onClick={function(){ var u=periods.filter(function(x){ return x.start!==p.start; }); setPeriods(u); saveAll({periods:u}); }}
                   style={{background:"none",border:"none",color:P.textSoft,cursor:"pointer",fontSize:18,padding:"4px 8px"}}>✕</button>
               </div>;
             })}
@@ -704,7 +910,7 @@ function App() {
             return <div key={i} style={{...card,border:"1.5px solid "+ph.color+(active?"50":"18"),background:active?ph.color+"06":"#fff"}}>
               <div style={{display:"flex",justifyContent:"space-between",marginBottom:5}}>
                 <div style={{fontWeight:800,color:ph.color}}>{ph.emoji} {ph.phase}</div>
-                <div style={{fontSize:10,color:P.textSoft}}>{ph.days}</div>
+                <div style={{fontSize:10,color:P.textSoft}}>{i===3?"Days 18-"+cycleLen:ph.phase==="Menstrual"?"Days 1-5":ph.phase==="Follicular"?"Days 6-"+(cycleLen-14-1):"Days "+(cycleLen-14)+" - "+(cycleLen-10)}</div>
               </div>
               <div style={{fontSize:11,color:P.textMid,marginBottom:3}}><strong>Training:</strong> {ph.training}</div>
               <div style={{fontSize:11,color:P.textMid,marginBottom:3}}><strong>Discharge:</strong> {ph.discharge}</div>
@@ -717,6 +923,44 @@ function App() {
 
       </div>
 
+      {/* ── TIME OFF MODAL ── */}
+      {timeOffModal&&(
+        <div className="modal-bg" onClick={function(e){ if(e.target===e.currentTarget) setTimeOffModal(false); }}>
+          <div className="modal">
+            <div style={{fontWeight:900,fontSize:18,marginBottom:4}}>Add Time Off</div>
+            <div style={{fontSize:11,color:P.textSoft,marginBottom:16}}>Holiday or low-activity week — plan adjusts km automatically</div>
+            <div style={{marginBottom:12}}>
+              <div style={{fontSize:11,fontWeight:700,marginBottom:6}}>Which week?</div>
+              <select value={newTOWeek} onChange={function(e){ setNewTOWeek(e.target.value); }}
+                style={{width:"100%",padding:"10px",borderRadius:10,border:"1.5px solid "+P.border,fontSize:13}}>
+                <option value="">Select week...</option>
+                {BASE_PLAN.map(function(w){ return <option key={w.week} value={w.week}>{w.week} · {w.startDate}</option>; })}
+              </select>
+            </div>
+            <div style={{marginBottom:16}}>
+              <div style={{fontSize:11,fontWeight:700,marginBottom:6}}>Training capacity: <strong style={{color:P.violet}}>{newTOPct}%</strong></div>
+              <input type="range" min="0" max="80" value={newTOPct} onChange={function(e){ setNewTOPct(parseInt(e.target.value)); }}
+                style={{width:"100%"}}/>
+              <div style={{display:"flex",justifyContent:"space-between",fontSize:9,color:P.textSoft,marginTop:4}}>
+                <span>0% (full rest)</span><span>40% (half)</span><span>80% (light)</span>
+              </div>
+              {newTOWeek&&<div style={{marginTop:8,fontSize:11,color:P.violet,fontWeight:700}}>
+                Target km: {Math.round((BASE_PLAN.find(function(w){ return w.week===newTOWeek; })||{target:0}).target*newTOPct/100)}km (vs normal {(BASE_PLAN.find(function(w){ return w.week===newTOWeek; })||{target:0}).target}km)
+              </div>}
+            </div>
+            <button onClick={addTimeOff}
+              style={{width:"100%",background:P.violet,border:"none",color:"#fff",borderRadius:12,padding:"12px",fontSize:14,fontWeight:800,cursor:"pointer",marginBottom:8}}>
+              Save Time Off
+            </button>
+            <button onClick={function(){ setTimeOffModal(false); }}
+              style={{width:"100%",background:"none",border:"1.5px solid "+P.border,borderRadius:12,padding:"10px",fontSize:13,fontWeight:600,cursor:"pointer",color:P.textMid}}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Bottom nav */}
       <div className="bottom-nav">
         {nav.map(function(item){
           var id=item[0],icon=item[1],label=item[2],active=tab===id;
