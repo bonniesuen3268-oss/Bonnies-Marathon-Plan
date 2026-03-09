@@ -130,7 +130,7 @@ function App() {
         localStorage.setItem("bonnie_auth", JSON.stringify(a));
         setAuth(a);
         window.history.replaceState({},""," /");
-        showToast(`👋 Hi ${a.athlete?.firstname||"Bonnie"}! Syncing runs…`);
+        showToast("Hi " + (a.athlete?.firstname||"Bonnie") + "! Syncing runs...");
         doSync(a);
       } catch(e) { console.error(e); }
     } else {
@@ -161,7 +161,7 @@ function App() {
       const filtered = Object.fromEntries(Object.entries(runs).filter(([k])=>k>="2025-12-01"));
       setStravaRuns(filtered);
       localStorage.setItem("bonnie_strava_runs", JSON.stringify(filtered));
-      showToast(`🟠 ${Object.keys(filtered).length} runs synced!`);
+      showToast(Object.keys(filtered).length + " runs synced from Strava!");
     } catch(e) { showToast("❌ Sync failed: "+e.message); }
     setSyncing(false);
   };
@@ -381,4 +381,3 @@ ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
 </script>
 </body>
 </html>
-
