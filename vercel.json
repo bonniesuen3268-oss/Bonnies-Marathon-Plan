@@ -1,0 +1,7 @@
+{
+  "rewrites": [
+    { "source": "/api/strava-login", "destination": "/api/strava-login.js" },
+    { "source": "/api/strava-callback", "destination": "/api/strava-callback.js" },
+    { "source": "/api/strava-api", "destination": "/api/strava-api.js" }
+  ]
+}
