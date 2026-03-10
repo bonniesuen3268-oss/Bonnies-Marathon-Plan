@@ -31,23 +31,63 @@ const P = {
   border:"#E8ECF8",borderMid:"#D0D8F0"
 };
 
-// ── GOAL PACES ───────────────────────────────────────────────────────────────
-// Sub-4hr marathon = 5:41/km. Training paces based on that.
-const GOAL_PACES = {
-  easy:    { min:"6:30", max:"7:00", label:"Easy",    why:"Builds aerobic base. Conversational pace." },
-  tempo:   { min:"5:50", max:"6:10", label:"Tempo",   why:"Comfortably hard. Builds lactate threshold." },
-  long:    { min:"6:20", max:"6:50", label:"Long Run", why:"Build endurance. Slightly faster than easy." },
-  race:    { min:"5:38", max:"5:44", label:"Race Pace",why:"Target race pace for sub-4hr." },
-  pilates: { label:"Cross-train",    why:"Recovery, strength, injury prevention." },
-};
+// ── PROGRESSIVE PACES ────────────────────────────────────────────────────────
+// Paces get faster each phase as you build toward sub-4hr (5:41/km race pace)
+// Phase 1 = Weeks 15-20 (Base), Phase 2 = Weeks 21-28 (Build),
+// Phase 3 = Weeks 29-35 (Peak), Phase 4 = Weeks 36-40 (Taper/Race)
 
-function getSessionPace(session) {
+// AGGRESSIVE plan — closing 35sec/km gap in 174 days
+// Science: 80% easy (aerobic base) + 20% hard (threshold/race pace)
+// Easy runs MUST stay easy so hard runs can be truly hard
+// Tempo jumps to near-threshold NOW, not in peak phase
+const PACE_PHASES = [
+  { // Attack Base — weeks 15-20: establish threshold early
+    label:"Attack Base", weeks:[15,16,17,18,19,20],
+    easy:  { min:"6:20", max:"6:50", why:"KEEP THIS EASY. Your aerobic base is built here. If easy runs feel too slow, good — that means your hard sessions will actually work." },
+    tempo: { min:"5:50", max:"6:05", why:"AGGRESSIVE START. This is threshold pace — harder than comfortable. You should only manage 1-2 sentences. Crucial for closing your 35sec/km gap fast." },
+    long:  { min:"6:15", max:"6:45", why:"Mostly easy, but push the final 2-3km to 6:05-6:15. Start teaching your legs what race effort feels like." },
+  },
+  { // Build — weeks 21-28: increase volume + sharpen tempo
+    label:"Build", weeks:[21,22,23,24,25,26,27,28],
+    easy:  { min:"6:10", max:"6:40", why:"Slightly sharper as fitness builds. Still conversational — resist the urge to push easy runs." },
+    tempo: { min:"5:45", max:"6:00", why:"Getting close to race pace. These runs hurt. Push through — this is where sub-4 gets built. Final 3km of tempo at 5:45." },
+    long:  { min:"6:00", max:"6:30", why:"Run first 2/3 easy (6:20-6:30), last 1/3 at 6:00-6:10. Progressive effort. This is your secret weapon." },
+  },
+  { // Peak — weeks 29-35: race simulation
+    label:"Peak", weeks:[29,30,31,32,33,34,35],
+    easy:  { min:"6:00", max:"6:30", why:"Recovery pace between hard sessions. Don't skip rest — fitness is built in recovery, not in the run itself." },
+    tempo: { min:"5:38", max:"5:50", why:"RACE PACE tempo. You should feel like you're racing. 10-14km at 5:38-5:50 is the hardest session in this plan — and the most important." },
+    long:  { min:"5:55", max:"6:20", why:"Final 8-10km at race pace effort (5:41-5:50). Your long runs now simulate the back half of the marathon. This is why you'll finish." },
+  },
+  { // Taper — weeks 36-40: sharpen and trust
+    label:"Taper", weeks:[36,37,38,39,40],
+    easy:  { min:"5:55", max:"6:20", why:"Fresh legs — let them feel fast. Short easy runs just to stay sharp. No new fitness built here, just maintaining." },
+    tempo: { min:"5:35", max:"5:45", why:"Slightly faster than race pace to sharpen. Short — only 4-6km. Your body is rested, this should feel controlled not desperate." },
+    long:  { min:"5:45", max:"6:05", why:"Race pace runs during taper. Confidence builders. You've done the work — trust it." },
+  },
+];
+
+const RACE_PACE = { min:"5:38", max:"5:44", label:"Race Pace", why:"Your sub-4hr marathon target pace. Every session is building toward this." };
+const CROSS_TRAIN = { label:"Cross-train", why:"Recovery, strength, injury prevention. Just as important as running." };
+
+function getWeekNum(weekStr) {
+  var m = (weekStr||"").match(/Week (\d+)/);
+  return m ? parseInt(m[1]) : 16;
+}
+
+function getPacePhase(weekStr) {
+  var wn = getWeekNum(weekStr);
+  return PACE_PHASES.find(function(p){ return p.weeks.includes(wn); }) || PACE_PHASES[0];
+}
+
+function getSessionPace(session, weekStr) {
   var s = session.toLowerCase();
-  if (s.includes("pilates") || s.includes("strength") || s.includes("rest")) return GOAL_PACES.pilates;
-  if (s.includes("race day")) return GOAL_PACES.race;
-  if (s.includes("tempo")) return GOAL_PACES.tempo;
-  if (s.includes("long") || s.includes("peak")) return GOAL_PACES.long;
-  return GOAL_PACES.easy;
+  if (s.includes("pilates") || s.includes("strength") || s.includes("rest")) return CROSS_TRAIN;
+  if (s.includes("race day")) return RACE_PACE;
+  var pp = getPacePhase(weekStr);
+  if (s.includes("tempo")) return Object.assign({ label:"Tempo", phase:pp.label }, pp.tempo);
+  if (s.includes("long") || s.includes("peak")) return Object.assign({ label:"Long Run", phase:pp.label }, pp.long);
+  return Object.assign({ label:"Easy Run", phase:pp.label }, pp.easy);
 }
 
 // ── COMPLETED WEEKS ──────────────────────────────────────────────────────────
@@ -69,33 +109,35 @@ const COMPLETED_WEEKS = [
 ];
 
 // ── BASE PLAN ────────────────────────────────────────────────────────────────
+// AGGRESSIVE plan — 6 sessions/week in peak, progressive long runs, race-pace work
+// Sessions marked with "prog" = progressive (start easy, finish fast)
 const BASE_PLAN = [
-  { week:"Week 15", startDate:"2026-03-02", target:30, sessions:["Easy 6km","Tempo 8km","Easy 7km","Long 9km","Pilates/Strength"] },
-  { week:"Week 16", startDate:"2026-03-09", target:35, sessions:["Easy 6km","Tempo 8km","Easy 7km","Long 14km","Pilates/Strength"] },
-  { week:"Week 17", startDate:"2026-03-16", target:38, sessions:["Easy 7km","Tempo 9km","Easy 7km","Long 15km","Pilates/Strength"] },
-  { week:"Week 18", startDate:"2026-03-23", target:32, sessions:["Easy 6km","Tempo 8km","Easy 6km","Long 12km","Pilates/Strength"] },
-  { week:"Week 19", startDate:"2026-03-30", target:28, sessions:["Easy 6km","Easy 7km","Easy 7km","Rest","Pilates/Strength"] },
-  { week:"Week 20", startDate:"2026-04-06", target:32, sessions:["Easy 6km","Tempo 7km","Easy 7km","Long 12km","Pilates/Strength"] },
-  { week:"Week 21", startDate:"2026-04-13", target:42, sessions:["Easy 7km","Tempo 9km","Easy 8km","Long 18km","Pilates/Strength"] },
-  { week:"Week 22", startDate:"2026-04-20", target:46, sessions:["Easy 7km","Tempo 10km","Easy 8km","Long 21km","Pilates/Strength"] },
-  { week:"Week 23", startDate:"2026-04-27", target:38, sessions:["Easy 7km","Tempo 9km","Easy 6km","Long 16km","Pilates/Strength"] },
-  { week:"Week 24", startDate:"2026-05-04", target:30, sessions:["Easy 6km","Easy 7km","Easy 7km","Rest","Pilates/Strength"] },
-  { week:"Week 25", startDate:"2026-05-11", target:50, sessions:["Easy 8km","Tempo 11km","Easy 9km","Long 22km","Pilates/Strength"] },
-  { week:"Week 26", startDate:"2026-05-18", target:53, sessions:["Easy 8km","Tempo 11km","Easy 9km","Long 25km","Pilates/Strength"] },
-  { week:"Week 27", startDate:"2026-05-25", target:55, sessions:["Easy 8km","Tempo 12km","Easy 9km","Long 26km","Pilates/Strength"] },
-  { week:"Week 28", startDate:"2026-06-01", target:48, sessions:["Easy 8km","Tempo 10km","Easy 8km","Long 22km","Pilates/Strength"] },
-  { week:"Week 29", startDate:"2026-06-08", target:28, sessions:["Easy 6km","Easy 7km","Easy 7km","Rest","Pilates/Strength"] },
-  { week:"Week 30", startDate:"2026-06-15", target:35, sessions:["Easy 7km","Tempo 7km","Easy 7km","Long 14km","Pilates/Strength"] },
-  { week:"Week 31", startDate:"2026-06-22", target:56, sessions:["Easy 8km","Tempo 12km","Easy 9km","Long 27km","Pilates/Strength"] },
-  { week:"Week 32", startDate:"2026-06-29", target:57, sessions:["Easy 8km","Tempo 12km","Easy 8km","PEAK Long 29km","Pilates/Strength"] },
-  { week:"Week 33", startDate:"2026-07-06", target:55, sessions:["Easy 8km","Tempo 11km","Easy 8km","Long 28km","Pilates/Strength"] },
-  { week:"Week 34", startDate:"2026-07-13", target:50, sessions:["Easy 7km","Tempo 11km","Easy 8km","Long 24km","Pilates/Strength"] },
-  { week:"Week 35", startDate:"2026-07-20", target:44, sessions:["Easy 7km","Tempo 10km","Easy 7km","Long 20km","Pilates/Strength"] },
-  { week:"Week 36", startDate:"2026-07-27", target:38, sessions:["Easy 6km","Tempo 9km","Easy 7km","Long 16km","Pilates/Strength"] },
-  { week:"Week 37", startDate:"2026-08-03", target:30, sessions:["Easy 6km","Tempo 8km","Easy 6km","Long 10km","Pilates/Strength"] },
-  { week:"Week 38", startDate:"2026-08-10", target:22, sessions:["Easy 5km","Tempo 7km","Easy 5km","Long 5km","Pilates/Strength"] },
-  { week:"Week 39", startDate:"2026-08-17", target:15, sessions:["Easy 5km","Easy 5km","Easy 5km","Pilates/Strength"] },
-  { week:"Week 40", startDate:"2026-08-24", target:8,  sessions:["Easy 3km","Easy 5km","RACE DAY 30 Aug"] },
+  { week:"Week 15", startDate:"2026-03-02", target:32, sessions:["Easy 6km","Tempo 8km @ 5:50-6:05","Easy 6km","Medium 10km","Long 8km progressive","Pilates/Strength"] },
+  { week:"Week 16", startDate:"2026-03-09", target:37, sessions:["Easy 6km","Tempo 9km @ 5:50-6:05","Easy 7km","Medium 11km","Long 14km progressive","Pilates/Strength"] },
+  { week:"Week 17", startDate:"2026-03-16", target:40, sessions:["Easy 7km","Tempo 10km @ 5:50-6:05","Easy 7km","Medium 11km","Long 15km progressive","Pilates/Strength"] },
+  { week:"Week 18", startDate:"2026-03-23", target:34, sessions:["Easy 6km","Tempo 9km @ 5:50-6:05","Easy 6km","Medium 10km","Long 13km progressive","Pilates/Strength"] },
+  { week:"Week 19", startDate:"2026-03-30", target:28, sessions:["Easy 6km","Easy 8km","Easy 7km","Rest","Pilates/Strength"] },
+  { week:"Week 20", startDate:"2026-04-06", target:36, sessions:["Easy 6km","Tempo 9km @ 5:50-6:05","Easy 7km","Medium 11km","Long 13km progressive","Pilates/Strength"] },
+  { week:"Week 21", startDate:"2026-04-13", target:46, sessions:["Easy 7km","Tempo 11km @ 5:45-6:00","Easy 8km","Medium 12km","Long 18km progressive","Pilates/Strength"] },
+  { week:"Week 22", startDate:"2026-04-20", target:50, sessions:["Easy 7km","Tempo 12km @ 5:45-6:00","Easy 8km","Medium 12km","Long 21km progressive","Pilates/Strength"] },
+  { week:"Week 23", startDate:"2026-04-27", target:42, sessions:["Easy 7km","Tempo 11km @ 5:45-6:00","Easy 7km","Medium 11km","Long 17km progressive","Pilates/Strength"] },
+  { week:"Week 24", startDate:"2026-05-04", target:30, sessions:["Easy 6km","Easy 8km","Easy 7km","Rest","Pilates/Strength"] },
+  { week:"Week 25", startDate:"2026-05-11", target:54, sessions:["Easy 8km","Tempo 13km @ 5:45-6:00","Easy 9km","Medium 13km","Long 22km progressive","Pilates/Strength"] },
+  { week:"Week 26", startDate:"2026-05-18", target:57, sessions:["Easy 8km","Tempo 13km @ 5:45-6:00","Easy 9km","Medium 14km","Long 25km progressive","Pilates/Strength"] },
+  { week:"Week 27", startDate:"2026-05-25", target:59, sessions:["Easy 8km","Tempo 14km @ 5:45-6:00","Easy 9km","Medium 14km","Long 26km progressive","Pilates/Strength"] },
+  { week:"Week 28", startDate:"2026-06-01", target:52, sessions:["Easy 8km","Tempo 12km @ 5:45-6:00","Easy 8km","Medium 12km","Long 24km progressive","Pilates/Strength"] },
+  { week:"Week 29", startDate:"2026-06-08", target:30, sessions:["Easy 6km","Easy 8km","Easy 7km","Rest","Pilates/Strength"] },
+  { week:"Week 30", startDate:"2026-06-15", target:38, sessions:["Easy 7km","Tempo 9km @ 5:38-5:50","Easy 7km","Medium 12km","Long 15km race-pace finish","Pilates/Strength"] },
+  { week:"Week 31", startDate:"2026-06-22", target:60, sessions:["Easy 8km","Tempo 14km @ 5:38-5:50","Easy 9km","Medium 14km","Long 27km race-pace finish","Pilates/Strength"] },
+  { week:"Week 32", startDate:"2026-06-29", target:61, sessions:["Easy 8km","Tempo 14km @ 5:38-5:50","Easy 8km","Medium 14km","PEAK Long 29km race-pace finish","Pilates/Strength"] },
+  { week:"Week 33", startDate:"2026-07-06", target:59, sessions:["Easy 8km","Tempo 13km @ 5:38-5:50","Easy 8km","Medium 14km","Long 28km race-pace finish","Pilates/Strength"] },
+  { week:"Week 34", startDate:"2026-07-13", target:54, sessions:["Easy 7km","Tempo 13km @ 5:38-5:50","Easy 8km","Medium 13km","Long 24km race-pace finish","Pilates/Strength"] },
+  { week:"Week 35", startDate:"2026-07-20", target:47, sessions:["Easy 7km","Tempo 11km @ 5:38-5:50","Easy 7km","Medium 12km","Long 20km race-pace finish","Pilates/Strength"] },
+  { week:"Week 36", startDate:"2026-07-27", target:40, sessions:["Easy 6km","Tempo 10km @ 5:35-5:45","Easy 7km","Medium 10km","Long 16km at race pace","Pilates/Strength"] },
+  { week:"Week 37", startDate:"2026-08-03", target:32, sessions:["Easy 6km","Tempo 8km @ 5:35-5:45","Easy 6km","Medium 8km","Long 12km at race pace","Pilates/Strength"] },
+  { week:"Week 38", startDate:"2026-08-10", target:22, sessions:["Easy 5km","Tempo 6km @ 5:35-5:45","Easy 5km","Long 6km at race pace","Pilates/Strength"] },
+  { week:"Week 39", startDate:"2026-08-17", target:14, sessions:["Easy 5km","Race pace 4km","Easy 5km","Pilates/Strength"] },
+  { week:"Week 40", startDate:"2026-08-24", target:8,  sessions:["Easy 3km","Race pace strides 3km","RACE DAY 30 Aug — 5:41/km 💪"] },
 ];
 
 const CYCLE_PHASES = [
@@ -235,48 +277,71 @@ function calcFitnessScore(completedWeeks) {
 }
 
 // Goal assessment
-function assessGoal(allRuns, completedWeeks, sessions, livePlan) {
+function assessGoal(allRuns, completedWeeks, sessions, livePlan, currentWeek) {
   var paces=Object.values(allRuns).map(function(r){ return paceToMin(r.pace); }).filter(Boolean);
   var avgP=paces.length>0?paces.reduce(function(s,p){ return s+p; },0)/paces.length:6.5;
-  var goalPace=5.683; // 5:41
+  var goalPace=5.683; // 5:41/km
   var paceGap=avgP-goalPace; // positive = slower than goal
-  var fitness=calcFitnessScore(completedWeeks);
+  var gapSecs=Math.round(paceGap*60);
+
+  // Pace trend: compare last 6 runs to previous 6
+  var sortedPaces=Object.entries(allRuns).sort(function(a,b){ return a[0].localeCompare(b[0]); })
+    .map(function(e){ return paceToMin(e[1].pace); }).filter(Boolean);
+  var recentAvg=sortedPaces.slice(-6).reduce(function(s,p){ return s+p; },0)/Math.min(6,sortedPaces.length);
+  var olderAvg=sortedPaces.slice(-12,-6).length>0?sortedPaces.slice(-12,-6).reduce(function(s,p){ return s+p; },0)/sortedPaces.slice(-12,-6).length:avgP;
+  var improving=recentAvg<olderAvg; // lower pace = faster
+  var improvingBy=Math.round((olderAvg-recentAvg)*60); // sec/km
+
+  // Projected finish time based on current avg pace
+  var projectedMins=avgP*42.2;
+  var projHrs=Math.floor(projectedMins/60);
+  var projMins=Math.round(projectedMins%60);
+  var projStr=projHrs+"hr "+projMins+"min";
+
+  // Weeks left to close gap
+  var weeksLeft=Math.ceil((new Date("2026-08-30")-new Date())/604800000);
+  var secsPerWeekNeeded=weeksLeft>0?gapSecs/weeksLeft:gapSecs;
+
   var totalPlanned=completedWeeks.reduce(function(s,w){ return s+w.planned; },0);
   var totalActual=completedWeeks.reduce(function(s,w){ return s+w.actual; },0);
   var adherence=totalActual/totalPlanned;
 
-  // Current week done?
-  var curWk=livePlan.find(function(w){ return w.week==="Week 16"; });
+  var curWkName=currentWeek?currentWeek.week:"Week 16";
+  var curWk=livePlan.find(function(w){ return w.week===curWkName; });
   var weekDone=0,weekTotal=0;
-  if(curWk){ weekTotal=curWk.sessions.length; weekDone=curWk.sessions.filter(function(_,i){ return sessions["Week 16_"+i]; }).length; }
+  if(curWk){ weekTotal=curWk.sessions.length; weekDone=curWk.sessions.filter(function(_,i){ return sessions[curWkName+"_"+i]; }).length; }
 
-  var status, color, message, tip;
-  if (paceGap > 0.6 && adherence < 0.75) {
-    status="Needs Focus"; color=P.coral;
-    message="You're currently "+Math.round(paceGap*60)+"sec/km off goal pace and below planned km. Sub-4 is still achievable but needs consistency.";
-    tip="Focus on completing tempo runs at 5:50-6:10/km. Don't skip the long runs!";
-  } else if (paceGap > 0.4) {
-    status="Building"; color=P.orange;
-    message="Pace gap is "+Math.round(paceGap*60)+"sec/km. You're building well — keep pushing tempo sessions.";
-    tip="Nail your tempo runs at 5:50-6:10/km. Each one closes the gap.";
-  } else if (adherence >= 0.9 && paceGap < 0.3) {
-    status="On Track"; color=P.teal;
-    message="Great consistency! Pace is getting close to goal. Keep up the long runs.";
-    tip="You're on track. Don't skip recovery — it's when fitness is built.";
+  var status, color, message, tip, projection;
+
+  // Honest projection
+  projection = "At current avg "+Math.floor(avgP)+":"+(Math.round((avgP%1)*60)).toString().padStart(2,"0")+"/km → projected finish: "+projStr+". Need "+gapSecs+"sec/km improvement for sub-4:00.";
+
+  if (paceGap > 0.5 && adherence < 0.75) {
+    status="Action Required"; color=P.coral;
+    message="Gap to sub-4 is "+gapSecs+"sec/km. Consistency is the #1 issue — you've completed "+Math.round(adherence*100)+"% of planned km. Every missed session makes the gap harder to close.";
+    tip="This week: nail your tempo at 5:50-6:05/km and don't skip the long run. Two quality sessions this week closes "+Math.round(secsPerWeekNeeded)+" sec/km of the gap.";
+  } else if (paceGap > 0.5) {
+    status="Building Pace"; color=P.orange;
+    message="Gap is "+gapSecs+"sec/km but consistency is solid ("+Math.round(adherence*100)+"% of planned km done). "+(improving?"Pace improving "+improvingBy+"sec/km over last 6 runs — keep going!":"Pace not improving yet — push harder in tempo sessions.");
+    tip="Tempo sessions are your weapon. Hit 5:50-6:05 this phase, 5:38-5:50 in peak. Each week of quality closes ~"+Math.round(secsPerWeekNeeded)+"sec/km.";
+  } else if (paceGap > 0.2) {
+    status="On Track"; color=P.electric;
+    message="Gap is down to "+gapSecs+"sec/km — you're within striking distance of sub-4. "+(improving?"Trending faster: "+improvingBy+"sec/km improvement recently.":"Stay consistent and the peak phase tempo runs will close the rest.");
+    tip="Don't ease off now. Peak phase tempo at 5:38-5:50/km is where this gets locked in.";
   } else {
-    status="Good Progress"; color="#06D6A0";
-    message="Solid progress! Stay consistent and the pace will come.";
-    tip="Keep showing up. Consistency beats perfection.";
+    status="Sub-4 is Yours"; color=P.teal;
+    message="Pace gap is just "+gapSecs+"sec/km. You are on track for sub-4:00. "+(improving?"And you're still getting faster!":"Stay healthy through taper and you've got this.");
+    tip="Trust the taper. Don't add extra sessions now — your fitness is there.";
   }
 
   var weekStatus, weekColor;
   if(weekTotal===0){ weekStatus=""; weekColor=P.textSoft; }
-  else if(weekDone===weekTotal){ weekStatus="Week complete!"; weekColor=P.teal; }
-  else if(weekDone>=Math.ceil(weekTotal/2)){ weekStatus="Great week!"; weekColor=P.teal; }
-  else if(weekDone===0){ weekStatus="Not started"; weekColor=P.textSoft; }
-  else { weekStatus="In progress"; weekColor=P.orange; }
+  else if(weekDone===weekTotal){ weekStatus="Week complete! 🎉"; weekColor=P.teal; }
+  else if(weekDone>=Math.ceil(weekTotal*0.6)){ weekStatus="Great week!"; weekColor=P.teal; }
+  else if(weekDone===0){ weekStatus="Not started yet"; weekColor=P.textSoft; }
+  else { weekStatus=weekDone+"/"+weekTotal+" done"; weekColor=P.orange; }
 
-  return { status, color, message, tip, paceGap, adherence, fitness, weekStatus, weekColor, weekDone, weekTotal };
+  return { status, color, message, tip, projection, paceGap, gapSecs, adherence, improving, improvingBy, projStr, weekStatus, weekColor, weekDone, weekTotal };
 }
 
 // ── BAR CHART ────────────────────────────────────────────────────────────────
@@ -328,12 +393,15 @@ function BarChart({ pastData, liveWeek, sessions }) {
 }
 
 // ── SESSION ITEM ─────────────────────────────────────────────────────────────
-function SessionItem({ session, done, onToggle, showPace }) {
+function SessionItem({ session, done, onToggle, showPace, weekStr }) {
   const [open, setOpen] = useState(false);
-  var pace = getSessionPace(session);
-  var isCross = session.toLowerCase().includes("pilates")||session.toLowerCase().includes("strength")||session.toLowerCase().includes("rest");
+  var pace = getSessionPace(session, weekStr);
+  var isCross = !pace.min;
   var isRace = session.toLowerCase().includes("race day");
-  var emoji = done?"✅":isRace?"🏁":isCross?"🧘":session.includes("Tempo")?"🔥":session.includes("Long")||session.includes("PEAK")?"🌟":"🐣";
+  var isTempo = session.toLowerCase().includes("tempo");
+  var isLong = session.toLowerCase().includes("long") || session.toLowerCase().includes("peak");
+  var emoji = done?"✅":isRace?"🏁":isCross?"🧘":isTempo?"🔥":isLong?"🌟":"🐣";
+  var badgeColor = isTempo?P.orange:isLong?P.violet:P.electric;
   return (
     <div style={{borderBottom:"1px solid "+P.border}}>
       <div style={{display:"flex",alignItems:"center",gap:9,padding:"8px 0",cursor:"pointer"}} onClick={onToggle}>
@@ -341,17 +409,18 @@ function SessionItem({ session, done, onToggle, showPace }) {
           {done&&<span style={{color:"#fff",fontSize:11,fontWeight:900}}>✓</span>}
         </div>
         <span style={{flex:1,fontSize:12,color:done?P.textSoft:P.textDark,textDecoration:done?"line-through":"none",fontWeight:done?400:600}}>{emoji} {session}</span>
-        {showPace&&!isCross&&!isRace&&(
-          <span onClick={function(e){e.stopPropagation();setOpen(!open);}} style={{fontSize:9,fontWeight:700,color:pace===GOAL_PACES.tempo?P.orange:P.electric,background:(pace===GOAL_PACES.tempo?P.orange:P.electric)+"15",borderRadius:6,padding:"2px 6px",cursor:"pointer",flexShrink:0}}>
-            {pace.min}-{pace.max}
+        {showPace&&!isCross&&!isRace&&pace.min&&(
+          <span onClick={function(e){e.stopPropagation();setOpen(!open);}} style={{fontSize:9,fontWeight:700,color:badgeColor,background:badgeColor+"15",borderRadius:6,padding:"2px 6px",cursor:"pointer",flexShrink:0}}>
+            {pace.min}–{pace.max}
           </span>
         )}
       </div>
       {open&&(
-        <div style={{background:P.electric+"08",borderRadius:10,padding:"8px 10px",marginBottom:8,fontSize:11}}>
-          <div style={{fontWeight:800,color:P.electric,marginBottom:2}}>{pace.label} pace: {pace.min}–{pace.max}/km</div>
-          <div style={{color:P.textMid}}>{pace.why}</div>
-          {!isCross&&<div style={{color:P.teal,marginTop:4,fontWeight:600}}>Race pace target: 5:38–5:44/km</div>}
+        <div style={{background:badgeColor+"08",borderRadius:10,padding:"8px 10px",marginBottom:8,fontSize:11,border:"1px solid "+badgeColor+"20"}}>
+          <div style={{fontWeight:800,color:badgeColor,marginBottom:2}}>{pace.label}: {pace.min}–{pace.max}/km</div>
+          {pace.phase&&<div style={{fontSize:10,color:P.textSoft,marginBottom:4}}>({pace.phase})</div>}
+          <div style={{color:P.textMid,lineHeight:1.5}}>{pace.why}</div>
+          {!isCross&&<div style={{color:P.teal,marginTop:6,fontWeight:600,fontSize:10}}>Race day target: 5:38–5:44/km</div>}
         </div>
       )}
     </div>
@@ -402,7 +471,7 @@ function App() {
   var totalActual = COMPLETED_WEEKS.reduce(function(s,w){ return s+w.actual; },0);
   var athleteId = auth&&auth.athlete?auth.athlete.id||"bonnie_default":null;
 
-  var assessment = useMemo(function(){ return assessGoal(allRuns,COMPLETED_WEEKS,sessions,livePlan); },[allRuns,sessions,livePlan]);
+  var assessment = useMemo(function(){ return assessGoal(allRuns,COMPLETED_WEEKS,sessions,livePlan,currentWeek); },[allRuns,sessions,livePlan]);
 
   // Find current and next week dynamically
   var currentWeekIdx = useMemo(function(){
@@ -559,6 +628,18 @@ function App() {
               <div style={{fontSize:10,fontWeight:700,color:assessment.weekColor,background:assessment.weekColor+"18",borderRadius:8,padding:"2px 8px"}}>{assessment.weekStatus}</div>
             </div>
             <div style={{fontSize:11,color:P.textMid,lineHeight:1.6,marginBottom:6}}>{assessment.message}</div>
+            {/* Projection row */}
+            <div style={{background:"rgba(0,0,0,0.04)",borderRadius:10,padding:"8px 10px",marginBottom:8}}>
+              <div style={{fontSize:10,color:P.textSoft,marginBottom:2}}>Projected finish at current pace</div>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                <div style={{fontSize:16,fontWeight:900,color:assessment.paceGap>0.1?P.orange:P.teal}}>{assessment.projStr}</div>
+                <div style={{textAlign:"right"}}>
+                  <div style={{fontSize:10,fontWeight:700,color:P.violet}}>Goal: 3hr 59min</div>
+                  <div style={{fontSize:9,color:P.textSoft}}>Gap: {assessment.gapSecs}sec/km</div>
+                </div>
+              </div>
+              {assessment.improving&&<div style={{fontSize:10,color:P.teal,fontWeight:700,marginTop:4}}>Trending faster: {assessment.improvingBy}sec/km improvement over last 6 runs</div>}
+            </div>
             <div style={{fontSize:11,fontWeight:700,color:assessment.color}}>💡 {assessment.tip}</div>
           </div>
 
@@ -582,11 +663,18 @@ function App() {
             <div style={{height:8,background:P.border,borderRadius:4,overflow:"hidden",marginBottom:6}}>
               <div style={{height:"100%",width:"60%",background:"linear-gradient(90deg,"+P.electric+","+P.orange+")",borderRadius:4}}/>
             </div>
-            <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-              <div style={{fontSize:10,background:P.electric+"10",borderRadius:8,padding:"3px 8px",color:P.electric,fontWeight:600}}>Easy: 6:30–7:00/km</div>
-              <div style={{fontSize:10,background:P.orange+"10",borderRadius:8,padding:"3px 8px",color:P.orange,fontWeight:600}}>Tempo: 5:50–6:10/km</div>
-              <div style={{fontSize:10,background:P.teal+"10",borderRadius:8,padding:"3px 8px",color:P.teal,fontWeight:600}}>Long: 6:20–6:50/km</div>
-            </div>
+            {(function(){
+              var pp = getPacePhase(currentWeek ? currentWeek.week : "Week 16");
+              return <div>
+                <div style={{fontSize:10,color:P.textSoft,marginBottom:5,fontWeight:700}}>{pp.label} paces · updates each phase:</div>
+                <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                  <div style={{fontSize:10,background:P.electric+"10",borderRadius:8,padding:"3px 8px",color:P.electric,fontWeight:600}}>🐣 Easy: {pp.easy.min}–{pp.easy.max}/km</div>
+                  <div style={{fontSize:10,background:P.orange+"10",borderRadius:8,padding:"3px 8px",color:P.orange,fontWeight:600}}>🔥 Tempo: {pp.tempo.min}–{pp.tempo.max}/km</div>
+                  <div style={{fontSize:10,background:P.violet+"10",borderRadius:8,padding:"3px 8px",color:P.violet,fontWeight:600}}>🌟 Long: {pp.long.min}–{pp.long.max}/km</div>
+                  <div style={{fontSize:10,background:P.teal+"10",borderRadius:8,padding:"3px 8px",color:P.teal,fontWeight:600}}>🏁 Race: 5:38–5:44/km</div>
+                </div>
+              </div>;
+            })()}
           </div>
 
           {/* Progress chart */}
@@ -626,7 +714,7 @@ function App() {
                 <div style={{height:"100%",width:(assessment.weekTotal>0?assessment.weekDone/assessment.weekTotal*100:0)+"%",background:"linear-gradient(90deg,"+P.electric+","+P.teal+")",borderRadius:3,transition:"width 0.4s"}}/>
               </div>
               {currentWeek.sessions.map(function(s,i){
-                return <SessionItem key={i} session={s} done={!!sessions[currentWeek.week+"_"+i]} onToggle={function(){ toggleSession(currentWeek.week,i); }} showPace={true}/>;
+                 return <SessionItem key={i} session={s} done={!!sessions[currentWeek.week+"_"+i]} onToggle={function(){ toggleSession(currentWeek.week,i); }} showPace={true} weekStr={currentWeek.week}/>;
               })}
               {assessment.weekDone===assessment.weekTotal&&assessment.weekTotal>0&&(
                 <button onClick={function(){ closeWeek(currentWeek.week); }}
@@ -734,17 +822,23 @@ function App() {
                 {wk.phase&&<div style={{background:wk.phase.color+"12",borderRadius:10,padding:"7px 10px",marginBottom:8,fontSize:11,color:wk.phase.color,fontWeight:700}}>
                   {wk.phase.emoji} {wk.phase.phase} · {wk.phase.training}
                 </div>}
-                {/* Pace guide for this week */}
-                <div style={{background:P.electric+"08",borderRadius:10,padding:"7px 10px",marginBottom:8,fontSize:10}}>
-                  <div style={{fontWeight:800,color:P.electric,marginBottom:4}}>Target paces this week</div>
-                  <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-                    {[["🐣 Easy","6:30–7:00",P.teal],["🔥 Tempo","5:50–6:10",P.orange],["🌟 Long","6:20–6:50",P.electric],["🏁 Race","5:38–5:44",P.violet]].map(function(x){
-                      return <div key={x[0]} style={{fontSize:9,fontWeight:700,color:x[2]}}>{x[0]}: <strong>{x[1]}</strong>/km</div>;
-                    })}
-                  </div>
-                </div>
+                {/* Pace guide for this week — progressive */}
+                {(function(){
+                  var pp = getPacePhase(wk.week);
+                  return <div style={{background:P.electric+"08",borderRadius:10,padding:"7px 10px",marginBottom:8,fontSize:10,border:"1px solid "+P.electric+"20"}}>
+                    <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
+                      <div style={{fontWeight:800,color:P.electric}}>Target paces · {wk.week}</div>
+                      <div style={{fontSize:9,color:P.textSoft,fontWeight:700}}>{pp.label}</div>
+                    </div>
+                    <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                      {[["🐣 Easy",pp.easy.min+"–"+pp.easy.max,P.teal],["🔥 Tempo",pp.tempo.min+"–"+pp.tempo.max,P.orange],["🌟 Long",pp.long.min+"–"+pp.long.max,P.violet],["🏁 Race","5:38–5:44",P.electric]].map(function(x){
+                        return <div key={x[0]} style={{fontSize:9,fontWeight:700,color:x[2]}}>{x[0]}: <strong>{x[1]}</strong>/km</div>;
+                      })}
+                    </div>
+                  </div>;
+                })()}
                 {wk.sessions.map(function(s,si){
-                  return <SessionItem key={si} session={s} done={!!sessions[wk.week+"_"+si]} onToggle={function(){ toggleSession(wk.week,si); }} showPace={true}/>;
+                   return <SessionItem key={si} session={s} done={!!sessions[wk.week+"_"+si]} onToggle={function(){ toggleSession(wk.week,si); }} showPace={true} weekStr={wk.week}/>;
                 })}
                 {isCurrent&&done===wk.sessions.length&&(
                   <button onClick={function(){ closeWeek(wk.week); }}
